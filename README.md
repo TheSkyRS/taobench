@@ -1,69 +1,132 @@
-# TAOBench
-A distributed database benchmark based on Meta's social graph workload.
+# Midterm Artifact: Distributed System Group
 
-## Overview
+This document is a midterm artifact for our group, "Distributed System." As previously presented, we reviewed the paper "TAO" by Facebook and analyzed two benchmarks: "DCPerf/taobench" and "TAOBench." This artifact shows how we used "TAOBench" to obtain results and provides an overview of the TAOBench structure.
 
-TAOBench is a benchmark based on Meta's social networking workload for distributed databases.
-Specifically, TAOBench captures the requests patterns of [TAO](https://www.usenix.org/system/files/conference/atc13/atc13-bronson.pdf), the social graph store at Meta. TAOBench can both accurately model production workloads and generate emergent application behavior at flexible scale.
+---
 
-### Use Cases
-TAOBench can be configured and used for many purposes depending on developer needs. The following are few examples of how the benchmark has been used.
+## Quick Review
 
-1. **Analyzing new workloads**: TAOBench can be used to measure the performance of novel workloads, including ones that are difficult or infeasible to run in production. For example, this benchmark has been used at Meta to test new transactional workloads and was able to succesfully predict error rates that were later observed in production. It has also been used to quantify the impact of high fan-out transactions.
+- **Code Repository**: [TAOBench on GitHub](https://github.com/TheSkyRS/taobench) (Yonghao Lin's GitHub)
+- **TAOBench Overview**: [OVERVIEW.md provicded by the original author](OVERVIEW.md)
+- **Cloudlab Profile**: [Cloudlab TAO Profile](https://www.cloudlab.us/p/EECSE6894/TAO)
+- **Cloudlab Disk Image**: `urn:publicid:IDN+utah.cloudlab.us+image+eecse6894-PG0:TAO`
 
-2. **Assessing system reliability**: TAOBench can reproduce workloads on demand to evaluate how a system performs under stressful scenarios (e.g., network delays, regional overload, and disaster recovery). At Meta, engineers used this benchmark to understand TAO performance and error rates when locks were held for extended periods of time.
+### 1. Basic Information
 
-3. **Evaluating new features**: TAOBench enables developers to test new features, optimizations, and more at flexible scale. System engineers at Meta leveraged this benchmark to measure how additional read-modify-write methods could increase the success rates of requests.
+#### 1.1 TAO: Facebook’s Distributed Data Store for the Social Graph
+- **Paper**: [TAO Paper](https://www.usenix.org/system/files/conference/atc13/atc13-bronson.pdf)
+- **Meta Blog**: [Meta TAO Blog](https://engineering.fb.com/2013/06/25/core-infra/tao-the-power-of-the-graph/)
 
-### Workload Features
-TAOBench's workloads, which are derived from Meta's production requests, have a number of interesting features. For details, check out our [VLDB paper](https://www.vldb.org/pvldb/vol15/p1965-cheng.pdf).
+#### 1.2 TAOBench
+- **Code Repository**: [TAOBench GitHub](https://github.com/TheSkyRS/taobench) (Yonghao Lin's GitHub)
+- **Paper**: [TAOBench Paper](https://www.vldb.org/pvldb/vol15/p1965-cheng.pdf)
+- **Official Website**: [TAOBench.org](https://taobench.org/)
+- **Meta Blog**: [TAOBench Blog](https://engineering.fb.com/2022/09/07/core-infra/taobench/)
 
-## Installation
-### Dependencies
-To build TAOBench, install:
+#### 1.3 DCPerf/taobench
+- **Code Repository**: [DCPerf GitHub](https://github.com/AlexWFreeman/Data-Center-Processing) (Xiaojie Wu's GitHub)
+- **Meta Blog**: [DCPerf Meta Blog](https://engineering.fb.com/2024/08/05/data-center-engineering/dcperf-open-source-benchmark-suite-for-hyperscale-compute-applications/)
 
-- a C++17 compiler
-- CMake (version 3.7 or higher)
+#### 1.4 Cloudlab Information
+- **Profile**: [Cloudlab TAO Profile](https://www.cloudlab.us/p/EECSE6894/TAO)
+- **Image Disk**: `urn:publicid:IDN+utah.cloudlab.us+image+eecse6894-PG0:TAO`
 
-<details>
-<summary>Example: Ubuntu 18.04</summary>
+---
 
-```shell
-apt-get update
-apt-get install -y software-properties-common
-add-apt-repository -y ppa:ubuntu-toolchain-r/test
-apt-get install -y build-essential cmake g++-11
+### 2. How to Use TAOBench
+
+#### 2.1 Cloudlab Implementation
+
+To implement this artifact on Cloudlab, please follow these steps:
+
+1. Use the "TAO" profile and select the OS image: `urn:publicid:IDN+utah.cloudlab.us+image+eecse6894-PG0:TAO`.
+2. Set the hardware to `cloudlab-utah -> c6525-100g`.
+3. Follow the Cloudlab instructions to initiate the node.
+4. SSH into the node. The artifact files are located in `/local/taobench/`.
+
+#### 2.2 File Structure
+
+To use this artifact, navigate to `/local/taobench/`. Key files include:
+
+- **`./src`**: Contains all source code for TAOBench.
+  - **`benchmark.cc`**: Main function file for TAOBench:
+    - **Command-Line Parsing**: Configures benchmark properties like thread count, database name, and experiment settings.
+    - **Operations Tracking**: Tracks completed, failed, and overtime operations.
+    - **Workload Functions**:
+      - **`RunTransactions`**: Executes transactions based on experimental settings.
+      - **`RunBatchInsert`**: Performs batch data insertions with multiple threads.
+      - **`RunTestWorkload`**: Runs a simple workload for testing.
+    - **`./mysqldb`**: Contains MySQL database configuration files.
+  - **`workload_o.json`**: Represents a read-heavy workload configuration file.
+
+- **`./experiments.txt`**: Allows parameter setup for experiments, including `num_threads`, `warmup_len`, and `exp_len`.
+
+#### 2.3 Software Implementation
+
+This image is fully implemented, so the environment is pre-configured. Enter `/local/taobench/` and use the `make` command to ensure any source code modifications are correctly compiled. The MySQL database, named `benchmark`, can be accessed using `sudo mysql`.
+
+**Load Data Phase**:  
+To load data, use the following command:
+
+```bash
+sudo ./taobench -load-threads 48 -db mysql -p mysqldb/mysql_db.properties -c src/workload_o.json -load -n 1500000
 ```
-</details>
 
-To use TAOBench, you will need to additionally install database-specific
-libraries. Details can be found in each driver's documentation.
+This command will load data into the benchmark MySQL database. After data loading, verify the row counts with:
 
-### Build
-Clone TAOBench's [Git repository](https://github.com/audreyccheng/taobench) and
-build with the following:
-```shell
-git clone https://github.com/audreyccheng/taobench.git
-cmake . -DWITH_<dbname>=ON
-make
+SELECT COUNT(*) FROM edges; (Expected: 1,500,000 rows in the edges table)
+SELECT COUNT(*) FROM objects; (Expected: 3,000,000 rows in the objects table)
+
+**Run Experiments Phase**:  
+To run the experiment, use the following command:
+
+```bash
+sudo ./taobench -load-threads 48 -db mysql -p mysqldb/mysql_db.properties -c src/workload_o.json -run -e experiments.txt
 ```
-Supply any of the following CMake flags: `WITH_CRDB`, `WITH_MYSQL`,
-`WITH_SPANNER`, `WITH_YUGABYTE` to build the respective drivers.
 
-You should now have the `taobench` executable.
+This command loads the parameters from experiments.txt, which includes:
+```
+48: Number of threads
+10: Warmup length in seconds
+150: Experiment length in seconds
+```
+After running the experiment, results will be displayed in the terminal and recorded in /local/taobench/results.txt.
 
-## Usage
-See [USAGE.md](USAGE.md).
+### 3. Result Information
 
-Currently, we provide adapter layers for the following services:
+When you check the [/local/taobench/results.txt](), you can refer to final part of the result which contains like
+```
+Experiment description: 48 threads, 10 seconds (warmup), 150 seconds (experiment)
+Total runtime (sec): 150.011
+Runtime excluding warmup (sec): 140.01
+Total completed operations excluding warmup: 22703079
+Throughput excluding warmup: 162153
+Number of overtime operations: 24298608
+Number of failed operations: 0
+22703079 operations; [INSERT: Count=17991 Max=12323.52 Min=88.58 Avg=558.00] [READ: Count=22014325 Max=14338.29 Min=25.16 Avg=211.03] [UPDATE: Count=32115 Max=11956.92 Min=110.62 Avg=660.94] [READTRANSACTION: Count=635997 Max=169687.88 Min=94.18 Avg=2839.90] [WRITETRANSACTION: Count=2651 Max=15413.49 Min=255.60 Avg=1597.97] [WRITE: Count=50106 Max=12323.52 Min=88.58 Avg=623.98]
+```
 
-- [Cloud Spanner](https://cloud.google.com/spanner)
-- MySQL and MySQL-compatible databases
-  - [PlanetScale](https://planetscale.com/)
-  - [TiDB](https://tidbcloud.com/)
-- Postgres-compatible databases
-  - [CockroachDB](https://www.cockroachlabs.com/get-started-cockroachdb/)
-  - [YugabyteDB](https://www.yugabyte.com/)
+After done this execution, you can find slight difference in mysql database compared to original state.
+Beacause the real workload of TAO is read-heavy, but there is still a few of write.
 
-## Credit
-This is a fork of [YCSB-cpp](https://github.com/ls4154/YCSB-cpp).
+```
+mysql> SELECT COUNT(*) FROM objects;
++----------+
+| COUNT(*) |
++----------+
+|  3024351 |
++----------+
+
+mysql> SELECT COUNT(*) FROM edges;
++----------+
+| COUNT(*) |
++----------+
+|  1500115 |
++----------+
+```
+
+A few clarifications:
+
+- For throughput, each read/write/read transaction/write transaction counts as a single completed operation.
+- The last line describes operation latencies. The "Count" is the number of completed operations. The "Max", "Min", and "Avg" are latencies in microseconds. The WRITE operation category is an aggregate of inserts/updates/deletes.
+- `Overtime operations` aren't particularly meaningful anymore.
