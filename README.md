@@ -1,6 +1,6 @@
-# Midterm Artifact: Distributed System Group
+# Midterm Artifact: TAOBench
 
-This document is a midterm artifact for our group, "Distributed System." As previously presented, we reviewed the paper "TAO" by Facebook and analyzed two benchmarks: "DCPerf/taobench" and "TAOBench." This artifact shows how we used "TAOBench" to obtain results and provides an overview of the TAOBench structure.
+This document is a midterm artifact for our group, **"Distributed System."** As previously presented, we reviewed the paper "TAO" by Facebook and analyzed two benchmarks: "DCPerf/taobench" and "TAOBench." This artifact shows how we used "TAOBench" to obtain results and provides an overview of the TAOBench structure.
 
 ---
 
@@ -84,17 +84,17 @@ To run the experiment, use the following command:
 sudo ./taobench -load-threads 48 -db mysql -p mysqldb/mysql_db.properties -c src/workload_o.json -run -e experiments.txt
 ```
 
-This command loads the parameters from experiments.txt, which includes:
+This command loads the parameters from [experiments.txt](experiments.txt), which includes:
 ```
 48: Number of threads
 10: Warmup length in seconds
 150: Experiment length in seconds
 ```
-After running the experiment, results will be displayed in the terminal and recorded in /local/taobench/results.txt.
+After running the experiment, results will be displayed in the terminal and recorded in [/local/taobench/results.txt](results.txt).
 
 ### 3. Result Information
 
-When you check the [/local/taobench/results.txt](), you can refer to final part of the result which contains like
+When you check the [/local/taobench/results.txt](results.txt), you can refer to final part of the result which contains like
 ```
 Experiment description: 48 threads, 10 seconds (warmup), 150 seconds (experiment)
 Total runtime (sec): 150.011
@@ -107,7 +107,7 @@ Number of failed operations: 0
 ```
 
 After done this execution, you can find slight difference in mysql database compared to original state.
-Beacause the real workload of TAO is read-heavy, but there is still a few of write.
+Beacause the real workload of TAO is read-heavy, but there is still a few of writes.
 
 ```
 mysql> SELECT COUNT(*) FROM objects;
@@ -125,8 +125,8 @@ mysql> SELECT COUNT(*) FROM edges;
 +----------+
 ```
 
-A few clarifications:
+> A few clarifications:
 
-- For throughput, each read/write/read transaction/write transaction counts as a single completed operation.
-- The last line describes operation latencies. The "Count" is the number of completed operations. The "Max", "Min", and "Avg" are latencies in microseconds. The WRITE operation category is an aggregate of inserts/updates/deletes.
-- `Overtime operations` aren't particularly meaningful anymore.
+> - For throughput, each read/write/read transaction/write transaction counts as a single completed operation.
+> - The last line describes operation latencies. The "Count" is the number of completed operations. The "Max", "Min", and "Avg" are latencies in microseconds. The WRITE operation category is an aggregate of inserts/updates/deletes.
+> - `Overtime operations` aren't particularly meaningful anymore.
