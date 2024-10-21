@@ -8,6 +8,7 @@
 #include "measurements.h"
 #include "timer.h"
 #include "utils.h"
+#include "memcache.h"
 
 namespace benchmark {
 
