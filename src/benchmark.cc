@@ -317,7 +317,7 @@ void RunTransactions(benchmark::utils::Properties & props) {
   ClearDBs(dbs);
 
   std::cout << "Sleeping after batch reads." << std::endl;
-  std::this_thread::sleep_for(std::chrono::seconds(60));
+  std::this_thread::sleep_for(std::chrono::seconds(10));
 
   const bool show_status = (props.GetProperty("status", "true") == "true");
   if (!show_status) {
@@ -357,7 +357,7 @@ void RunTransactions(benchmark::utils::Properties & props) {
     // for TiDB at least, this was needed because connections take time to form
     // might need to adjust
     std::cout << "Sleeping after sending DB connections." << std::endl;
-    std::this_thread::sleep_for(std::chrono::seconds(150));
+    std::this_thread::sleep_for(std::chrono::seconds(30));
 
     CountDownLatch latch(num_experiment_threads);
     measurements.Reset();
@@ -420,7 +420,7 @@ void RunTransactions(benchmark::utils::Properties & props) {
 
     ClearDBs(experiment_dbs);
     // sleep between experiments
-    std::this_thread::sleep_for(std::chrono::seconds(150));
+    std::this_thread::sleep_for(std::chrono::seconds(10));
   }
 }
 
