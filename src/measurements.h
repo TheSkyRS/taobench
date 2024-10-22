@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <mutex>
+#include <iostream>
 
 namespace benchmark {
 
@@ -27,6 +28,7 @@ class Measurements {
   void Reset();
   uint64_t GetTotalNumOps();
   void ReportRead(bool hit) {
+    // std::cout << "stat:" << hit << ", hit:" << read_hit_ << ", miss:" << read_miss_ << std::endl;
     if (hit) {
       read_hit_ ++;
     } else {
