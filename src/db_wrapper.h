@@ -16,7 +16,9 @@ namespace benchmark {
 class DBWrapper : public DB {
  public:
   DBWrapper(DB *db, Measurements *measurements) :
-    db_(db) , measurements_(measurements) {}
+    db_(db) , measurements_(measurements) {
+      memcache_ = new MemcachedClient();
+    }
   ~DBWrapper() {
     delete db_;
   }
@@ -52,7 +54,19 @@ class DBWrapper : public DB {
                  std::vector<TimestampValue> &read_buffer,
                  bool txn_op = false) {
     timer_.Start();
-    Status s = db_->Execute(operation, read_buffer, txn_op);
+    Status s;
+    if (operation.operation == Operation::READ) {
+      if (memcache_->get(operation, read_buffer)) {
+        s = Status::kOK;
+      } else {
+        s = db_->Execute(operation, read_buffer, txn_op);
+        if (s == Status::kOK) {
+          memcache_->put(operation, read_buffer);
+        }
+      }
+    } else {
+      s = db_->Execute(operation, read_buffer, txn_op);
+    }
     uint64_t elapsed = timer_.End();
     if (s == Status::kOK) {
       measurements_->Report(operation.operation, elapsed);
@@ -99,6 +113,7 @@ class DBWrapper : public DB {
   DB *db_;
   Measurements *measurements_;
   utils::Timer<uint64_t, std::nano> timer_;
+  MemcachedClient *memcache_;
 };
 
 } // benchmark

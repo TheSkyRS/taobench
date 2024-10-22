@@ -15,6 +15,7 @@ option(WITH_YUGABYTE OFF)
 include_directories(src)
 file(GLOB SOURCES src/*.h src/*.cc)
 add_executable(taobench ${SOURCES})
+target_link_libraries(taobench -lmemcached)
 
 if(WITH_CRDB)
   include_directories(crdb)
