@@ -3,6 +3,8 @@
 
 #include <string>
 #include <vector>
+#include <iostream>
+#include <cassert>
 
 #include "db.h"
 #include "measurements.h"
@@ -79,7 +81,38 @@ class DBWrapper : public DB {
                             bool read_only = false)
   {
     timer_.Start();
-    Status s = db_->ExecuteTransaction(operations, read_buffer, read_only);
+    Status s;
+    if (read_only) {
+      std::vector<DB_Operation> miss_ops;
+      std::vector<TimestampValue> rsl_cache;
+      std::vector<TimestampValue> rsl_db;
+      // TODO: set global write lock to memcache.
+      for (size_t i = 0; i < operations.size(); i++) {
+        if (!memcache_->get(operations[i], rsl_cache)) {
+          // TODO: set "key" write lock to memcache.
+          rsl_cache.emplace_back(-1, "");
+          miss_ops.push_back(operations[i]);
+        }
+      }
+      // TODO: unset global write lock to memcache.
+      assert(rsl_cache.size() == operations.size()); // TODO: remove
+      s = db_->ExecuteTransaction(miss_ops, rsl_db, read_only);
+      if (s == Status::kOK) {
+        size_t db_pos = 0;
+        for (size_t i = 0; i < operations.size(); i++) {
+          if (rsl_cache[i].timestamp == -1){
+            read_buffer.push_back(rsl_db[db_pos]);
+            memcache_->put(operations[i], read_buffer);
+            db_pos++;
+          } else {
+            read_buffer.push_back(rsl_cache[i]);
+            // TODO: unset "key" write lock to memcache.
+          }
+        }
+      }
+    } else {
+      s = db_->ExecuteTransaction(operations, read_buffer, read_only);
+    }
     uint64_t elapsed = timer_.End();
     assert(!operations.empty());
     if (s != Status::kOK) {
