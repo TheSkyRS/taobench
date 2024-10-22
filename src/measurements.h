@@ -26,6 +26,16 @@ class Measurements {
   std::string WriteLatencies();
   void Reset();
   uint64_t GetTotalNumOps();
+  void ReportRead(bool hit) {
+    if (hit) {
+      read_hit_ ++;
+    } else {
+      read_miss_ ++;
+    }
+  }
+  double GetCacheHitRate() {
+    return 1.0 * read_hit_ / (read_hit_ + read_miss_);
+  }
  private:
   std::atomic<uint32_t> count_[static_cast<int>(Operation::MAXOPTYPE)];
   std::atomic<uint64_t> latency_sum_[static_cast<int>(Operation::MAXOPTYPE)];
@@ -44,6 +54,8 @@ class Measurements {
         {7,"WriteTxn"},
         {8,"Max"},
   };
+  std::atomic<int64_t> read_hit_;
+  std::atomic<int64_t> read_miss_;
 };
 
 } // benchmark

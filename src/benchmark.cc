@@ -415,6 +415,7 @@ void RunTransactions(benchmark::utils::Properties & props) {
     // now that we've removed target throughput.
     std::cout << "Number of overtime operations: " << OpsCounts::overtime_ops << std::endl;
     std::cout << "Number of failed operations: " << OpsCounts::failed_ops << std::endl;
+    std::cout << "Cache Hit Rate: " << measurements.GetCacheHitRate() << std::endl;
     std::cout << measurements.GetStatusMsg() << std::endl;
     std::cout << std::endl;
 

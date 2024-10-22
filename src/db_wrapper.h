@@ -59,8 +59,10 @@ class DBWrapper : public DB {
     Status s;
     if (operation.operation == Operation::READ) {
       if (memcache_->get(operation, read_buffer)) {
+        measurements_->ReportRead(true);
         s = Status::kOK;
       } else {
+        measurements_->ReportRead(false);
         s = db_->Execute(operation, read_buffer, txn_op);
         if (s == Status::kOK) {
           memcache_->put(operation, read_buffer);
@@ -90,8 +92,11 @@ class DBWrapper : public DB {
       for (size_t i = 0; i < operations.size(); i++) {
         if (!memcache_->get(operations[i], rsl_cache)) {
           // TODO: set "key" write lock to memcache.
+          measurements_->ReportRead(false);
           rsl_cache.emplace_back(-1, "");
           miss_ops.push_back(operations[i]);
+        } else {
+          measurements_->ReportRead(true);
         }
       }
       // TODO: unset global write lock to memcache.
