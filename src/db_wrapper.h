@@ -70,6 +70,7 @@ class DBWrapper : public DB {
       }
     } else {
       s = db_->Execute(operation, read_buffer, txn_op);
+      memcache_->invalidate(operation);
     }
     uint64_t elapsed = timer_.End();
     if (s == Status::kOK) {
@@ -117,6 +118,9 @@ class DBWrapper : public DB {
       }
     } else {
       s = db_->ExecuteTransaction(operations, read_buffer, read_only);
+      for (const DB_Operation& op : operations) {
+        memcache_->invalidate(op);
+      }
     }
     uint64_t elapsed = timer_.End();
     assert(!operations.empty());
