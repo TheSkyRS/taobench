@@ -21,7 +21,9 @@ if(WITH_MEMCACHE)
   include_directories(memcache)
   target_sources(taobench PRIVATE
     memcache/memcache.h
-    memcache/memcache.cc)
+    memcache/memcache.cc
+    memcache/lock_free_queue.h
+    memcache/memcache_wrapper.h)
   target_link_libraries(taobench -lmemcached)
 endif()
 

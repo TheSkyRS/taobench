@@ -15,14 +15,29 @@ bool DBFactory::RegisterDB(std::string db_name, DBCreator db_creator) {
 }
 
 DB *DBFactory::CreateDB(utils::Properties *props, Measurements *measurements) {
+  DB *db = CreateRawDB(props);
+  if (db != nullptr) {
+    return new DBWrapper(db, measurements);
+  }
+  return nullptr;
+}
+
+MemcacheWrapper *DBFactory::CreateMemcache(utils::Properties *props, Measurements *measurements) {
+  DB *db = CreateRawDB(props);
+  if (db != nullptr) {
+    return new MemcacheWrapper(db, measurements);
+  }
+  return nullptr;
+}
+
+DB *DBFactory::CreateRawDB(utils::Properties *props) {
   std::string db_name = props->GetProperty("dbname", "test");
   DB *db = nullptr;
   std::map<std::string, DBCreator> &registry = Registry();
   if (registry.find(db_name) != registry.end()) {
-    DB *new_db = (*registry[db_name])();
-    new_db->SetProps(props);
-    new_db->Init();
-    db = new DBWrapper(new_db, measurements);
+    db = (*registry[db_name])();
+    db->SetProps(props);
+    db->Init();
   }
   return db;
 }
