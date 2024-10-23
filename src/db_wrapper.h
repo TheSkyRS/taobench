@@ -55,14 +55,35 @@ class DBWrapper : public DB {
   Status Execute(const DB_Operation &operation,
                  std::vector<TimestampValue> &read_buffer,
                  bool txn_op = false) {
-    return memcache_->Execute(operation, read_buffer, txn_op);
+    int hit_count = 0, read_count = 0;
+    timer_.Start();
+    Status s = memcache_->Execute(operation, read_buffer, txn_op, hit_count, read_count);
+    uint64_t elapsed = timer_.End();
+    if (s == Status::kOK) {
+      measurements_->Report(operation.operation, elapsed);
+      measurements_->ReportRead(hit_count, read_count - hit_count);
+    }
+    return s;
   }
 
   Status ExecuteTransaction(const std::vector<DB_Operation> &operations,
                             std::vector<TimestampValue> &read_buffer,
                             bool read_only = false)
   {
-    return memcache_->ExecuteTransaction(operations, read_buffer, read_only);
+    int hit_count = 0, read_count = 0;
+    timer_.Start();
+    Status s = memcache_->ExecuteTransaction(operations, read_buffer, read_only, hit_count, read_count);
+    uint64_t elapsed = timer_.End();
+    if (s != Status::kOK) {
+      return s;
+    }
+    if (read_only) {
+      measurements_->Report(Operation::READTRANSACTION, elapsed);
+      measurements_->ReportRead(hit_count, read_count - hit_count);
+    } else {
+      measurements_->Report(Operation::WRITETRANSACTION, elapsed);
+    }
+    return s;
   }
 
   Status BatchInsert(DataTable table, 

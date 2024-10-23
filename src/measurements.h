@@ -27,12 +27,12 @@ class Measurements {
   std::string WriteLatencies();
   void Reset();
   uint64_t GetTotalNumOps();
-  void ReportRead(bool hit) {
+  void ReportRead(int hit, int miss) {
     // std::cout << "stat:" << hit << ", hit:" << read_hit_ << ", miss:" << read_miss_ << std::endl;
     if (hit) {
-      read_hit_ ++;
+      read_hit_ += hit;
     } else {
-      read_miss_ ++;
+      read_miss_ += miss;
     }
   }
   double GetCacheHitRate() {

@@ -32,15 +32,14 @@ class MemcacheWrapper {
 
   Status Execute(const DB::DB_Operation &operation,
                  std::vector<DB::TimestampValue> &read_buffer,
-                 bool txn_op = false) {
-    timer_.Start();
+                 bool txn_op, int& hit_count, int& read_count) {
     Status s;
     if (operation.operation == Operation::READ) {
+        read_count += 1;
       if (memcache_->get(operation, read_buffer)) {
-        measurements_->ReportRead(true);
+        hit_count += 1;
         s = Status::kOK;
       } else {
-        measurements_->ReportRead(false);
         s = db_->Execute(operation, read_buffer, txn_op);
         if (s == Status::kOK) {
           memcache_->put(operation, read_buffer);
@@ -50,16 +49,12 @@ class MemcacheWrapper {
       s = db_->Execute(operation, read_buffer, txn_op);
       memcache_->invalidate(operation);
     }
-    uint64_t elapsed = timer_.End();
-    if (s == Status::kOK) {
-      measurements_->Report(operation.operation, elapsed);
-    }
     return s;
   }
 
   Status ExecuteTransaction(const std::vector<DB::DB_Operation> &operations,
                             std::vector<DB::TimestampValue> &read_buffer,
-                            bool read_only = false)
+                            bool read_only, int& hit_count, int& read_count)
   {
     timer_.Start();
     Status s;
@@ -68,14 +63,14 @@ class MemcacheWrapper {
       std::vector<DB::TimestampValue> rsl_cache;
       std::vector<DB::TimestampValue> rsl_db;
       // TODO: set global write lock to memcache.
+      read_count += operations.size();
       for (size_t i = 0; i < operations.size(); i++) {
         if (!memcache_->get(operations[i], rsl_cache)) {
           // TODO: set "key" write lock to memcache.
-          measurements_->ReportRead(false);
           rsl_cache.emplace_back(-1, "");
           miss_ops.push_back(operations[i]);
         } else {
-          measurements_->ReportRead(true);
+          hit_count++;
         }
       }
       // TODO: unset global write lock to memcache.
@@ -100,16 +95,7 @@ class MemcacheWrapper {
         memcache_->invalidate(op);
       }
     }
-    uint64_t elapsed = timer_.End();
     assert(!operations.empty());
-    if (s != Status::kOK) {
-      return s;
-    }
-    if (read_only) {
-      measurements_->Report(Operation::READTRANSACTION, elapsed);
-    } else {
-      measurements_->Report(Operation::WRITETRANSACTION, elapsed);
-    }
     return s;
   }
 
