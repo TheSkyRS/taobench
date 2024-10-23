@@ -111,7 +111,7 @@ namespace benchmark {
 
   Status TraceGeneratorWorkload::DispatchRequest(DB &db) {
     std::discrete_distribution<> op_dist = config_parser.fields["operations"].distribution;
-    std::vector<DB::TimestampValue> read_buffer;
+    std::vector<DB::TimestampValue> read_buffer; // the read buffer is to mock the consumer
     switch (op_dist(rnd::gen)) {
       case 0:
         return db.Execute(GetReadOperation(false), read_buffer);
