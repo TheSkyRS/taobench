@@ -17,7 +17,7 @@ public:
     ~MemcachedClient();
 
     bool get(const DB::DB_Operation &operation, std::vector<DB::TimestampValue> &read_buffer);
-    bool put(const DB::DB_Operation &operation, std::vector<DB::TimestampValue> &read_buffer);
+    bool put(const DB::DB_Operation &operation, DB::TimestampValue &tsv);
     bool invalidate(const DB::DB_Operation &operation);
 
 private:

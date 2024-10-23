@@ -27,10 +27,10 @@ bool MemcachedClient::get(const DB::DB_Operation &operation, std::vector<DB::Tim
     return true;
 }
 
-bool MemcachedClient::put(const DB::DB_Operation &operation, std::vector<DB::TimestampValue> &buffer) {
+bool MemcachedClient::put(const DB::DB_Operation &operation, DB::TimestampValue &tsv) {
     assert(operation.operation == Operation::READ);
     std::string key = fields2Str(operation.key);
-    std::string value = timeval2Str(buffer[buffer.size()-1]);
+    std::string value = timeval2Str(tsv);
     return storeValue(key, value);
 }
 

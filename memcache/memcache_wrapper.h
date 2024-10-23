@@ -11,7 +11,22 @@
 #include "utils.h"
 #include "memcache.h"
 
+
 namespace benchmark {
+
+struct MemcacheRequest {
+  const std::vector<DB::DB_Operation> operations;
+  bool txn_op;
+  bool read_only;
+};
+
+struct MemcacheResponse {
+  std::vector<DB::TimestampValue> read_buffer;
+  Status s;
+  int hit_count = 0;
+  int read_count = 0;
+};
+
 
 class MemcacheWrapper {
  public:
@@ -21,79 +36,80 @@ class MemcacheWrapper {
   ~MemcacheWrapper() {
     delete db_;
   }
-  void Init() {
-    db_->Init();
-  }
   void Cleanup() {
     db_->Cleanup();
   }
 
-  Status Execute(const DB::DB_Operation &operation,
-                 std::vector<DB::TimestampValue> &read_buffer,
-                 bool txn_op, int& hit_count, int& read_count) {
-    Status s;
-    if (operation.operation == Operation::READ) {
-        read_count += 1;
+  MemcacheResponse Execute(MemcacheRequest req) {
+    assert(req.txn_op == false);
+    MemcacheResponse resp;
+    const auto& operation = req.operations[0];
+    auto& read_buffer = resp.read_buffer;
+    if (req.read_only) {
+        resp.read_count += 1;
       if (memcache_->get(operation, read_buffer)) {
-        hit_count += 1;
-        s = Status::kOK;
+        resp.s = Status::kOK;
+        resp.hit_count += 1;
       } else {
-        s = db_->Execute(operation, read_buffer, txn_op);
-        if (s == Status::kOK) {
-          memcache_->put(operation, read_buffer);
+        resp.s = db_->Execute(operation, read_buffer, false);
+        if (resp.s == Status::kOK) {
+          memcache_->put(operation, read_buffer[0]);
         }
       }
     } else {
-      s = db_->Execute(operation, read_buffer, txn_op);
+      resp.s = db_->Execute(operation, read_buffer, false);
       memcache_->invalidate(operation);
     }
-    return s;
+    return resp;
   }
 
-  Status ExecuteTransaction(const std::vector<DB::DB_Operation> &operations,
-                            std::vector<DB::TimestampValue> &read_buffer,
-                            bool read_only, int& hit_count, int& read_count)
-  {
-    Status s;
-    if (read_only) {
+  MemcacheResponse ExecuteTransaction(MemcacheRequest req) {
+    assert(req.txn_op == true);
+    MemcacheResponse resp;
+    const auto& operations = req.operations;
+    auto& read_buffer = resp.read_buffer;
+    if (req.read_only) {
       std::vector<DB::DB_Operation> miss_ops;
-      std::vector<DB::TimestampValue> rsl_cache;
       std::vector<DB::TimestampValue> rsl_db;
-      // TODO: set global write lock to memcache.
-      read_count += operations.size();
+      
+      resp.read_count += operations.size();
       for (size_t i = 0; i < operations.size(); i++) {
-        if (!memcache_->get(operations[i], rsl_cache)) {
-          // TODO: set "key" write lock to memcache.
-          rsl_cache.emplace_back(-1, "");
-          miss_ops.push_back(operations[i]);
+        if (memcache_->get(operations[i], read_buffer)) {
+          resp.hit_count++;
         } else {
-          hit_count++;
+          read_buffer.emplace_back(-1, "");
+          miss_ops.push_back(operations[i]);
         }
       }
-      // TODO: unset global write lock to memcache.
-      assert(rsl_cache.size() == operations.size()); // TODO: remove
-      s = db_->ExecuteTransaction(miss_ops, rsl_db, read_only);
-      if (s == Status::kOK) {
+      assert(read_buffer.size() == operations.size());
+
+      if (miss_ops.empty()) {
+        resp.s = Status::kOK; 
+        return resp;
+      }
+
+      resp.s = db_->ExecuteTransaction(miss_ops, rsl_db, true);
+      if (resp.s == Status::kOK) {
         size_t db_pos = 0;
         for (size_t i = 0; i < operations.size(); i++) {
-          if (rsl_cache[i].timestamp == -1){
-            read_buffer.push_back(rsl_db[db_pos]);
-            memcache_->put(operations[i], read_buffer);
+          if (read_buffer[i].timestamp == -1){
+            read_buffer[i] = rsl_db[db_pos];
+            memcache_->put(operations[i], rsl_db[db_pos]);
             db_pos++;
-          } else {
-            read_buffer.push_back(rsl_cache[i]);
-            // TODO: unset "key" write lock to memcache.
-          }
+          } 
         }
+      } else {
+        read_buffer.clear();
       }
     } else {
-      s = db_->ExecuteTransaction(operations, read_buffer, read_only);
+      resp.s = db_->ExecuteTransaction(operations, read_buffer, false);
       for (const DB::DB_Operation& op : operations) {
         memcache_->invalidate(op);
       }
     }
     assert(!operations.empty());
-    return s;
+
+    return resp;
   }
 
  private:

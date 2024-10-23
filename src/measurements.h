@@ -27,16 +27,15 @@ class Measurements {
   std::string WriteLatencies();
   void Reset();
   uint64_t GetTotalNumOps();
-  void ReportRead(int hit, int miss) {
-    // std::cout << "stat:" << hit << ", hit:" << read_hit_ << ", miss:" << read_miss_ << std::endl;
+  void ReportRead(int hit, int tot) {
     if (hit) {
       read_hit_ += hit;
     } else {
-      read_miss_ += miss;
+      read_tot_ += tot;
     }
   }
   double GetCacheHitRate() {
-    return 1.0 * read_hit_ / (read_hit_ + read_miss_);
+    return 1.0 * read_hit_ / read_tot_;
   }
  private:
   std::atomic<uint32_t> count_[static_cast<int>(Operation::MAXOPTYPE)];
@@ -57,7 +56,7 @@ class Measurements {
         {8,"Max"},
   };
   std::atomic<int64_t> read_hit_;
-  std::atomic<int64_t> read_miss_;
+  std::atomic<int64_t> read_tot_;
 };
 
 } // benchmark

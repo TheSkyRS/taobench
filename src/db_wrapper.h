@@ -27,6 +27,9 @@ class DBWrapper : public DB {
   }
   void Cleanup() {
     db_->Cleanup();
+    if (memcache_ != nullptr) {
+      memcache_-> Cleanup();
+    }
   }
   Status Read(DataTable table, const std::vector<Field> &key,
               std::vector<TimestampValue> &buffer) {
@@ -53,35 +56,41 @@ class DBWrapper : public DB {
   Status Execute(const DB_Operation &operation,
                  std::vector<TimestampValue> &read_buffer,
                  bool txn_op = false) {
-    int hit_count = 0, read_count = 0;
+    bool read_only = operation.operation == Operation::READ;
+
     timer_.Start();
-    Status s = memcache_->Execute(operation, read_buffer, txn_op, hit_count, read_count);
+    MemcacheRequest req{std::vector<DB_Operation>{operation}, txn_op, read_only};
+    MemcacheResponse resp = memcache_->Execute(req);
+    read_buffer.insert(read_buffer.end(), resp.read_buffer.begin(), resp.read_buffer.end());
     uint64_t elapsed = timer_.End();
-    if (s == Status::kOK) {
+
+    if (resp.s == Status::kOK) {
       measurements_->Report(operation.operation, elapsed);
-      measurements_->ReportRead(hit_count, read_count - hit_count);
+      measurements_->ReportRead(resp.hit_count, resp.read_count);
     }
-    return s;
+    return resp.s;
   }
 
   Status ExecuteTransaction(const std::vector<DB_Operation> &operations,
                             std::vector<TimestampValue> &read_buffer,
                             bool read_only = false)
   {
-    int hit_count = 0, read_count = 0;
     timer_.Start();
-    Status s = memcache_->ExecuteTransaction(operations, read_buffer, read_only, hit_count, read_count);
+    MemcacheRequest req{operations, true, read_only};
+    MemcacheResponse resp = memcache_->ExecuteTransaction(req);
+    read_buffer.insert(read_buffer.end(), resp.read_buffer.begin(), resp.read_buffer.end());
     uint64_t elapsed = timer_.End();
-    if (s != Status::kOK) {
-      return s;
+
+    if (resp.s != Status::kOK) {
+      return resp.s;
     }
     if (read_only) {
       measurements_->Report(Operation::READTRANSACTION, elapsed);
-      measurements_->ReportRead(hit_count, read_count - hit_count);
+      measurements_->ReportRead(resp.hit_count, resp.read_count);
     } else {
       measurements_->Report(Operation::WRITETRANSACTION, elapsed);
     }
-    return s;
+    return resp.s;
   }
 
   Status BatchInsert(DataTable table, 

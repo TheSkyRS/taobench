@@ -22,7 +22,7 @@ const char *kOperationString[static_cast<int>(Operation::MAXOPTYPE)] {
 };
 
 Measurements::Measurements() : count_{}, latency_sum_{}, latency_max_{},
-  read_hit_(0), read_miss_(0) {
+  read_hit_(0), read_tot_(0) {
   std::fill(std::begin(latency_min_), std::end(latency_min_), std::numeric_limits<uint64_t>::max());
   for (int i = 0; i < static_cast<int>(Operation::MAXOPTYPE); ++i) {
     latencies_[i].reserve(31000000);
