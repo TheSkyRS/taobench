@@ -10,17 +10,15 @@
 #include "measurements.h"
 #include "timer.h"
 #include "utils.h"
-#include "memcache_wrapper.h"
+#include "db_factory.h"
 
 namespace benchmark {
 
 // Wrapper Class around DB; times and logs each Execute and ExecuteTransaction operation.
 class DBWrapper : public DB {
  public:
-  DBWrapper(DB *db, Measurements *measurements) :
-    db_(db) , measurements_(measurements) {
-      memcache_ = new MemcacheWrapper(db, measurements);
-    }
+  DBWrapper(DB *db, Measurements *measurements, MemcacheWrapper *memcache) :
+    db_(db) , measurements_(measurements) , memcache_(memcache) {}
   ~DBWrapper() {
     delete db_;
   }

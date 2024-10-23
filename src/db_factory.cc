@@ -14,20 +14,28 @@ bool DBFactory::RegisterDB(std::string db_name, DBCreator db_creator) {
   return true;
 }
 
-DB *DBFactory::CreateDB(utils::Properties *props, Measurements *measurements) {
+DB *DBFactory::CreateDB(utils::Properties *props, Measurements *measurements, 
+  bool memcache) {
   DB *db = CreateRawDB(props);
   if (db != nullptr) {
-    return new DBWrapper(db, measurements);
+    if (!memcache) {
+      return new DBWrapper(db, measurements, nullptr);
+    }
+    return new DBWrapper(db, measurements, GetMemcache(props));
   }
   return nullptr;
 }
 
-MemcacheWrapper *DBFactory::CreateMemcache(utils::Properties *props, Measurements *measurements) {
+MemcacheWrapper *DBFactory::memcache_ = nullptr;
+MemcacheWrapper *DBFactory::GetMemcache(utils::Properties *props) {
+  // if (memcache_==nullptr) {
+  //   DB *db = CreateRawDB(props);
+  //   assert(db != nullptr);
+  //   memcache_ = new MemcacheWrapper(db);
+  // }
+  // return memcache_;
   DB *db = CreateRawDB(props);
-  if (db != nullptr) {
-    return new MemcacheWrapper(db, measurements);
-  }
-  return nullptr;
+  return new MemcacheWrapper(db);
 }
 
 DB *DBFactory::CreateRawDB(utils::Properties *props) {

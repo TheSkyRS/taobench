@@ -346,7 +346,7 @@ void RunTransactions(benchmark::utils::Properties & props) {
 
     std::vector<benchmark::DB *> experiment_dbs;
     for (int i = 0; i < num_experiment_threads; i++) {
-        benchmark::DB *db = benchmark::DBFactory::CreateDB(&props, &measurements);
+        benchmark::DB *db = benchmark::DBFactory::CreateDB(&props, &measurements, true);
         if (db == nullptr) {
             std::cerr << "Unknown database name " << props["dbname"] << std::endl;
             exit(1);
@@ -484,7 +484,7 @@ void RunBatchInsert(benchmark::utils::Properties & props) {
 void RunTestWorkload(benchmark::utils::Properties & props) {
   props.SetProperty("max_concurrent_connections", "1");
   benchmark::Measurements msmnts;
-  benchmark::DB *db = benchmark::DBFactory::CreateDB(&props, &msmnts);
+  benchmark::DB *db = benchmark::DBFactory::CreateDB(&props, &msmnts, true);
   benchmark::TestWorkload twl;
   twl.Init(*db);
   twl.DoRequest(*db);

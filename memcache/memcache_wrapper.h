@@ -7,7 +7,6 @@
 #include <cassert>
 
 #include "db.h"
-#include "measurements.h"
 #include "timer.h"
 #include "utils.h"
 #include "memcache.h"
@@ -16,10 +15,9 @@ namespace benchmark {
 
 class MemcacheWrapper {
  public:
-  MemcacheWrapper(DB *db, Measurements *measurements) :
-    db_(db) , measurements_(measurements) {
-      memcache_ = new MemcachedClient();
-    }
+  MemcacheWrapper(DB *db) : db_(db) {
+    memcache_ = new MemcachedClient();
+  }
   ~MemcacheWrapper() {
     delete db_;
   }
@@ -56,7 +54,6 @@ class MemcacheWrapper {
                             std::vector<DB::TimestampValue> &read_buffer,
                             bool read_only, int& hit_count, int& read_count)
   {
-    timer_.Start();
     Status s;
     if (read_only) {
       std::vector<DB::DB_Operation> miss_ops;
@@ -101,8 +98,6 @@ class MemcacheWrapper {
 
  private:
   DB *db_;
-  Measurements *measurements_;
-  utils::Timer<uint64_t, std::nano> timer_;
   MemcachedClient *memcache_;
 };
 

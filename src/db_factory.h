@@ -8,6 +8,7 @@
 
 #include <string>
 #include <map>
+#include <cassert>
 
 namespace benchmark {
 
@@ -15,11 +16,14 @@ class DBFactory {
  public:
   using DBCreator = DB *(*)();
   static bool RegisterDB(std::string db_name, DBCreator db_creator);
-  static DB *CreateDB(utils::Properties *props, Measurements *measurements);
-  static MemcacheWrapper *CreateMemcache(utils::Properties *props, Measurements *measurements);
+  static DB *CreateDB(utils::Properties *props, Measurements *measurements, 
+                      bool memcache=false);
+  
  private:
+  static MemcacheWrapper *GetMemcache(utils::Properties *props);
   static DB *CreateRawDB(utils::Properties *props);
   static std::map<std::string, DBCreator> &Registry();
+  static MemcacheWrapper *memcache_;
 };
 
 } // benchmark
