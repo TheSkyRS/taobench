@@ -7,6 +7,7 @@ set(CMAKE_CXX_COMPILER "g++-11")
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 
+option(WITH_MEMCACHE ON)
 option(WITH_CRDB OFF)
 option(WITH_MYSQL OFF)
 option(WITH_SPANNER OFF)
@@ -15,7 +16,14 @@ option(WITH_YUGABYTE OFF)
 include_directories(src)
 file(GLOB SOURCES src/*.h src/*.cc)
 add_executable(taobench ${SOURCES})
-target_link_libraries(taobench -lmemcached)
+
+if(WITH_MEMCACHE)
+  include_directories(memcache)
+  target_sources(taobench PRIVATE
+    memcache/memcache.h
+    memcache/memcache.cc)
+  target_link_libraries(taobench -lmemcached)
+endif()
 
 if(WITH_CRDB)
   include_directories(crdb)
