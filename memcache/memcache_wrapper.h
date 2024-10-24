@@ -50,12 +50,14 @@ struct DBRequest {
 
 class MemcacheWrapper {
  public:
-  MemcacheWrapper(DB *db) : db_(db) {}
+  MemcacheWrapper(DB *db, int rthreads=1): db_(db), read_threads(rthreads) {}
   ~MemcacheWrapper() {}
   void Start() {
-    thread_pool_.push_back(
-      std::async(std::launch::async, PollRead, &read_queue_, &db_queue_)
-    );
+    for (size_t i = 0; i < read_threads; i++){
+      thread_pool_.push_back(
+        std::async(std::launch::async, PollRead, &read_queue_, &db_queue_)
+      );
+    }
     thread_pool_.push_back(
       std::async(std::launch::async, PollWrite, &write_queue_, &db_queue_)
     );
@@ -214,6 +216,7 @@ class MemcacheWrapper {
     return resp;
   }
 
+  int read_threads;
   DB *db_;
   LockFreeQueue<MemcacheRequest> read_queue_;
   LockFreeQueue<MemcacheRequest> write_queue_;
