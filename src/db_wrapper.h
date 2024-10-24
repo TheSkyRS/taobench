@@ -27,9 +27,6 @@ class DBWrapper : public DB {
   }
   void Cleanup() {
     db_->Cleanup();
-    if (memcache_ != nullptr) {
-      memcache_-> Cleanup();
-    }
   }
   Status Read(DataTable table, const std::vector<Field> &key,
               std::vector<TimestampValue> &buffer) {

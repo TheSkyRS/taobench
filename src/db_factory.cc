@@ -28,16 +28,13 @@ DB *DBFactory::CreateDB(utils::Properties *props, Measurements *measurements,
 
 MemcacheWrapper *DBFactory::memcache_ = nullptr;
 MemcacheWrapper *DBFactory::GetMemcache(utils::Properties *props) {
-  // if (memcache_==nullptr) {
-  //   DB *db = CreateRawDB(props);
-  //   assert(db != nullptr);
-  //   memcache_ = new MemcacheWrapper(db);
-  // }
-  // return memcache_;
-  DB *db = CreateRawDB(props);
-  MemcacheWrapper* memcache = new MemcacheWrapper(db);
-  memcache->Start();
-  return memcache;
+  if (memcache_ == nullptr) {
+    DB *db = CreateRawDB(props);
+    assert(db != nullptr);
+    memcache_ = new MemcacheWrapper(db);
+    memcache_->Start();
+  }
+  return memcache_;
 }
 
 DB *DBFactory::CreateRawDB(utils::Properties *props) {

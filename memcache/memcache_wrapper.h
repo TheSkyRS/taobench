@@ -33,7 +33,8 @@ struct MemcacheRequest {
 class MemcacheWrapper {
  public:
   MemcacheWrapper(DB *db) : db_(db) {
-    memcache_ = new MemcachedClient();
+    memcache_get_ = new MemcachedClient();
+    memcache_put_ = new MemcachedClient();
   }
   ~MemcacheWrapper() {
     delete db_;
@@ -73,18 +74,18 @@ class MemcacheWrapper {
     auto& read_buffer = resp.read_buffer;
     if (req.read_only) {
         resp.read_count += 1;
-      if (memcache_->get(operation, read_buffer)) {
+      if (memcache_get_->get(operation, read_buffer)) {
         resp.s = Status::kOK;
         resp.hit_count += 1;
       } else {
         resp.s = db_->Execute(operation, read_buffer, false);
         if (resp.s == Status::kOK) {
-          memcache_->put(operation, read_buffer[0]);
+          memcache_put_->put(operation, read_buffer[0]);
         }
       }
     } else {
       resp.s = db_->Execute(operation, read_buffer, false);
-      memcache_->invalidate(operation);
+      memcache_put_->invalidate(operation);
     }
     return resp;
   }
@@ -100,7 +101,7 @@ class MemcacheWrapper {
       
       resp.read_count += operations.size();
       for (size_t i = 0; i < operations.size(); i++) {
-        if (memcache_->get(operations[i], read_buffer)) {
+        if (memcache_get_->get(operations[i], read_buffer)) {
           resp.hit_count++;
         } else {
           read_buffer.emplace_back(-1, "");
@@ -120,7 +121,7 @@ class MemcacheWrapper {
         for (size_t i = 0; i < operations.size(); i++) {
           if (read_buffer[i].timestamp == -1){
             read_buffer[i] = rsl_db[db_pos];
-            memcache_->put(operations[i], rsl_db[db_pos]);
+            memcache_put_->put(operations[i], rsl_db[db_pos]);
             db_pos++;
           } 
         }
@@ -130,7 +131,7 @@ class MemcacheWrapper {
     } else {
       resp.s = db_->ExecuteTransaction(operations, read_buffer, false);
       for (const DB::DB_Operation& op : operations) {
-        memcache_->invalidate(op);
+        memcache_put_->invalidate(op);
       }
     }
     assert(!operations.empty());
@@ -139,7 +140,8 @@ class MemcacheWrapper {
   }
 
   DB *db_;
-  MemcachedClient *memcache_;
+  MemcachedClient *memcache_get_;
+  MemcachedClient *memcache_put_;
   LockFreeQueue<MemcacheRequest> request_queue_;
   std::future<void> poll_thread_;
 };
