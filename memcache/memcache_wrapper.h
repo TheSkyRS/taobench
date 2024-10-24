@@ -15,6 +15,8 @@
 #include "lock_free_queue.h"
 #include "db_factory.h"
 
+#define RTHREADS 2
+
 #define DB_REQUEST(operations, read_buffer, txn_op, read_only, ret) \
     do { \
         std::atomic<bool> flag{false}; \
@@ -50,33 +52,33 @@ struct DBRequest {
 
 class MemcacheWrapper {
  public:
-  MemcacheWrapper(DB *db, int rthreads=1): db_(db), read_threads(rthreads) {}
+  MemcacheWrapper(DB *db): db_(db) {}
   ~MemcacheWrapper() {}
   void Start() {
-    for (size_t i = 0; i < read_threads; i++){
+    for (size_t i = 0; i < RTHREADS; i++) {
       thread_pool_.push_back(
-        std::async(std::launch::async, PollRead, &read_queue_, &db_queue_)
+        std::async(std::launch::async, PollRead, &read_queues_[i], &db_queue_, i)
+      );
+      thread_pool_.push_back(
+        std::async(std::launch::async, PollWrite, &write_queues_[i], &db_queue_)
       );
     }
-    thread_pool_.push_back(
-      std::async(std::launch::async, PollWrite, &write_queue_, &db_queue_)
-    );
     thread_pool_.push_back(
       std::async(std::launch::async, DBThread, &db_queue_, db_)
     );
   }
 
-  void SendCommand(MemcacheRequest req) {
+  void SendCommand(MemcacheRequest req, int idx=0) {
     if (req.read_only) {
-      read_queue_.enqueue(req);
+      read_queues_[idx].enqueue(req);
     } else {
-      write_queue_.enqueue(req);
+      write_queues_[idx].enqueue(req);
     }
   }
 
  private:
   static void PollRead(LockFreeQueue<MemcacheRequest> *requests, 
-                       LockFreeQueue<DBRequest> *db_queue) {
+                       LockFreeQueue<DBRequest> *db_queue, int tid) {
     MemcachedClient *memcache_get = new MemcachedClient();
     MemcachedClient *memcache_put = new MemcachedClient();
     MemcacheRequest req;
@@ -85,6 +87,7 @@ class MemcacheWrapper {
       if (!requests->dequeue(req)) {
         continue;
       }
+      // std::cout << "read" << tid << std::endl;
       if (req.txn_op) {
         resp = ReadTxn(req, memcache_get, memcache_put, db_queue);
       } else {
@@ -215,13 +218,13 @@ class MemcacheWrapper {
     }
     return resp;
   }
-
-  int read_threads;
+  
   DB *db_;
-  LockFreeQueue<MemcacheRequest> read_queue_;
-  LockFreeQueue<MemcacheRequest> write_queue_;
+  LockFreeQueue<MemcacheRequest> read_queues_[RTHREADS];
+  LockFreeQueue<MemcacheRequest> write_queues_[RTHREADS];
   LockFreeQueue<DBRequest> db_queue_;
   std::vector<std::future<void>> thread_pool_;
+  std::atomic<uint64_t> cmd_count_ = 0;
 };
 
 } // benchmark

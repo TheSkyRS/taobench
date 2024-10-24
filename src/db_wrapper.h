@@ -17,8 +17,8 @@ namespace benchmark {
 // Wrapper Class around DB; times and logs each Execute and ExecuteTransaction operation.
 class DBWrapper : public DB {
  public:
-  DBWrapper(DB *db, Measurements *measurements, MemcacheWrapper *memcache) :
-    db_(db) , measurements_(measurements) , memcache_(memcache) {}
+  DBWrapper(DB *db, Measurements *measurements, MemcacheWrapper *memcache, int tid=0) :
+    db_(db) , measurements_(measurements) , memcache_(memcache) , tid_(tid) {}
   ~DBWrapper() {
     delete db_;
   }
@@ -110,7 +110,7 @@ class DBWrapper : public DB {
     MemcacheResponse resp;
 
     timer_.Start();
-    memcache_->SendCommand(req);
+    memcache_->SendCommand(req, tid_);
     while (!result_queue.dequeue(resp));
     read_buffer.insert(read_buffer.end(), resp.read_buffer.begin(), resp.read_buffer.end());
     elapsed = timer_.End();
@@ -118,6 +118,7 @@ class DBWrapper : public DB {
   }
 
   DB *db_;
+  int tid_;
   Measurements *measurements_;
   utils::Timer<uint64_t, std::nano> timer_;
   MemcacheWrapper *memcache_;

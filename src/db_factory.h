@@ -17,7 +17,7 @@ class DBFactory {
   using DBCreator = DB *(*)();
   static bool RegisterDB(std::string db_name, DBCreator db_creator);
   static DB *CreateDB(utils::Properties *props, Measurements *measurements, 
-                      bool memcache=false);
+                      bool memcache=false, int tid=0);
   static DB *CreateRawDB(utils::Properties *props);
   
  private:
