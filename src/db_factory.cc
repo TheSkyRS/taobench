@@ -35,7 +35,9 @@ MemcacheWrapper *DBFactory::GetMemcache(utils::Properties *props) {
   // }
   // return memcache_;
   DB *db = CreateRawDB(props);
-  return new MemcacheWrapper(db);
+  MemcacheWrapper* memcache = new MemcacheWrapper(db);
+  memcache->Start();
+  return memcache;
 }
 
 DB *DBFactory::CreateRawDB(utils::Properties *props) {

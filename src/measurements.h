@@ -28,11 +28,8 @@ class Measurements {
   void Reset();
   uint64_t GetTotalNumOps();
   void ReportRead(int hit, int tot) {
-    if (hit) {
-      read_hit_ += hit;
-    } else {
-      read_tot_ += tot;
-    }
+    read_hit_ += hit;
+    read_tot_ += tot;
   }
   double GetCacheHitRate() {
     return 1.0 * read_hit_ / read_tot_;

@@ -55,14 +55,12 @@ class DBWrapper : public DB {
 
   Status Execute(const DB_Operation &operation,
                  std::vector<TimestampValue> &read_buffer,
-                 bool txn_op = false) {
+                 bool txn_op = false) 
+  {
     bool read_only = operation.operation == Operation::READ;
-
-    timer_.Start();
-    MemcacheRequest req{std::vector<DB_Operation>{operation}, txn_op, read_only};
-    MemcacheResponse resp = memcache_->Execute(req);
-    read_buffer.insert(read_buffer.end(), resp.read_buffer.begin(), resp.read_buffer.end());
-    uint64_t elapsed = timer_.End();
+    const std::vector<DB::DB_Operation> operations{operation};
+    uint64_t elapsed = 0;
+    auto resp = SendCommand(operations, read_buffer, txn_op, read_only, elapsed);
 
     if (resp.s == Status::kOK) {
       measurements_->Report(operation.operation, elapsed);
@@ -73,13 +71,10 @@ class DBWrapper : public DB {
 
   Status ExecuteTransaction(const std::vector<DB_Operation> &operations,
                             std::vector<TimestampValue> &read_buffer,
-                            bool read_only = false)
+                            bool read_only = false) 
   {
-    timer_.Start();
-    MemcacheRequest req{operations, true, read_only};
-    MemcacheResponse resp = memcache_->ExecuteTransaction(req);
-    read_buffer.insert(read_buffer.end(), resp.read_buffer.begin(), resp.read_buffer.end());
-    uint64_t elapsed = timer_.End();
+    uint64_t elapsed = 0;
+    auto resp = SendCommand(operations, read_buffer, true, read_only, elapsed);
 
     if (resp.s != Status::kOK) {
       return resp.s;
@@ -110,6 +105,21 @@ class DBWrapper : public DB {
   }
 
  private:
+  MemcacheResponse SendCommand(const std::vector<DB_Operation> &operations,
+                               std::vector<TimestampValue> &read_buffer,
+                               bool txn_op, bool read_only, uint64_t& elapsed) {
+    LockFreeQueue<MemcacheResponse> result_queue;
+    MemcacheRequest req{operations, &result_queue, txn_op, read_only};
+    MemcacheResponse resp;
+
+    timer_.Start();
+    memcache_->SendCommand(req);
+    while (!result_queue.dequeue(resp));
+    read_buffer.insert(read_buffer.end(), resp.read_buffer.begin(), resp.read_buffer.end());
+    elapsed = timer_.End();
+    return resp;
+  }
+
   DB *db_;
   Measurements *measurements_;
   utils::Timer<uint64_t, std::nano> timer_;

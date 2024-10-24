@@ -5,20 +5,16 @@
 #include <vector>
 #include <iostream>
 #include <cassert>
+#include <future>
 
 #include "db.h"
 #include "timer.h"
 #include "utils.h"
 #include "memcache.h"
+#include "lock_free_queue.h"
 
 
 namespace benchmark {
-
-struct MemcacheRequest {
-  const std::vector<DB::DB_Operation> operations;
-  bool txn_op;
-  bool read_only;
-};
 
 struct MemcacheResponse {
   std::vector<DB::TimestampValue> read_buffer;
@@ -27,6 +23,12 @@ struct MemcacheResponse {
   int read_count = 0;
 };
 
+struct MemcacheRequest {
+  std::vector<DB::DB_Operation> operations;
+  LockFreeQueue<MemcacheResponse> *result_queue;
+  bool txn_op;
+  bool read_only;
+};
 
 class MemcacheWrapper {
  public:
@@ -36,8 +38,32 @@ class MemcacheWrapper {
   ~MemcacheWrapper() {
     delete db_;
   }
+  void Start() {
+    poll_thread_ = std::async(std::launch::async, PollThread, this);
+  }
   void Cleanup() {
     db_->Cleanup();
+  }
+
+  void SendCommand(MemcacheRequest req) {
+    request_queue_.enqueue(req);
+  }
+
+ private:
+  static void PollThread(MemcacheWrapper* obj) {
+    MemcacheRequest req;
+    MemcacheResponse resp;
+    while (true) {
+      if (!obj->request_queue_.dequeue(req)) {
+        continue;
+      }
+      if (req.txn_op) {
+        resp = obj->ExecuteTransaction(req);
+      } else {
+        resp = obj->Execute(req);
+      }
+      req.result_queue->enqueue(resp);
+    }
   }
 
   MemcacheResponse Execute(MemcacheRequest req) {
@@ -112,9 +138,10 @@ class MemcacheWrapper {
     return resp;
   }
 
- private:
   DB *db_;
   MemcachedClient *memcache_;
+  LockFreeQueue<MemcacheRequest> request_queue_;
+  std::future<void> poll_thread_;
 };
 
 } // benchmark
