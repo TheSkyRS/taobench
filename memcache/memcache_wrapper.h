@@ -6,13 +6,22 @@
 #include <iostream>
 #include <cassert>
 #include <future>
+#include <atomic>
 
 #include "db.h"
 #include "timer.h"
 #include "utils.h"
 #include "memcache.h"
 #include "lock_free_queue.h"
+#include "db_factory.h"
 
+#define DB_REQUEST(operations, read_buffer, txn_op, read_only, ret) \
+    do { \
+        std::atomic<bool> flag{false}; \
+        DBRequest db_req{operations, &read_buffer, txn_op, read_only, &ret, &flag}; \
+        db_queue->enqueue(db_req); \
+        while (!flag); \
+    } while (0)
 
 namespace benchmark {
 
@@ -30,120 +39,186 @@ struct MemcacheRequest {
   bool read_only;
 };
 
+struct DBRequest {
+  std::vector<DB::DB_Operation> operations;
+  std::vector<DB::TimestampValue> *read_buffer;
+  bool txn_op;
+  bool read_only;
+  Status* s;
+  std::atomic<bool>* finished;
+};
+
 class MemcacheWrapper {
  public:
-  MemcacheWrapper(DB *db) : db_(db) {
-    memcache_get_ = new MemcachedClient();
-    memcache_put_ = new MemcachedClient();
-  }
-  ~MemcacheWrapper() {
-    delete db_;
-  }
+  MemcacheWrapper(DB *db) : db_(db) {}
+  ~MemcacheWrapper() {}
   void Start() {
-    poll_thread_ = std::async(std::launch::async, PollThread, this);
-  }
-  void Cleanup() {
-    db_->Cleanup();
+    thread_pool_.push_back(
+      std::async(std::launch::async, PollRead, &read_queue_, &db_queue_)
+    );
+    thread_pool_.push_back(
+      std::async(std::launch::async, PollWrite, &write_queue_, &db_queue_)
+    );
+    thread_pool_.push_back(
+      std::async(std::launch::async, DBThread, &db_queue_, db_)
+    );
   }
 
   void SendCommand(MemcacheRequest req) {
-    request_queue_.enqueue(req);
+    if (req.read_only) {
+      read_queue_.enqueue(req);
+    } else {
+      write_queue_.enqueue(req);
+    }
   }
 
  private:
-  static void PollThread(MemcacheWrapper* obj) {
+  static void PollRead(LockFreeQueue<MemcacheRequest> *requests, 
+                       LockFreeQueue<DBRequest> *db_queue) {
+    MemcachedClient *memcache_get = new MemcachedClient();
+    MemcachedClient *memcache_put = new MemcachedClient();
     MemcacheRequest req;
     MemcacheResponse resp;
     while (true) {
-      if (!obj->request_queue_.dequeue(req)) {
+      if (!requests->dequeue(req)) {
         continue;
       }
       if (req.txn_op) {
-        resp = obj->ExecuteTransaction(req);
+        resp = ReadTxn(req, memcache_get, memcache_put, db_queue);
       } else {
-        resp = obj->Execute(req);
+        resp = Read(req, memcache_get, memcache_put, db_queue);
       }
       req.result_queue->enqueue(resp);
     }
   }
 
-  MemcacheResponse Execute(MemcacheRequest req) {
-    assert(req.txn_op == false);
+  static void PollWrite(LockFreeQueue<MemcacheRequest> *requests,
+                        LockFreeQueue<DBRequest> *db_queue) {
+    MemcachedClient *memcache_put = new MemcachedClient();
+    MemcacheRequest req;
     MemcacheResponse resp;
-    const auto& operation = req.operations[0];
-    auto& read_buffer = resp.read_buffer;
-    if (req.read_only) {
-        resp.read_count += 1;
-      if (memcache_get_->get(operation, read_buffer)) {
-        resp.s = Status::kOK;
-        resp.hit_count += 1;
-      } else {
-        resp.s = db_->Execute(operation, read_buffer, false);
-        if (resp.s == Status::kOK) {
-          memcache_put_->put(operation, read_buffer[0]);
-        }
+    while (true) {
+      if (!requests->dequeue(req)) {
+        continue;
       }
+      if (req.txn_op) {
+        resp = WriteTxn(req, memcache_put, db_queue);
+      } else {
+        resp = Write(req, memcache_put, db_queue);
+      }
+      req.result_queue->enqueue(resp);
+    }
+  }
+
+  static void DBThread(LockFreeQueue<DBRequest> *requests, DB *db) {
+    DBRequest req;
+    while (true) {
+      if (!requests->dequeue(req)) {
+        continue;
+      }
+      if (req.txn_op) {
+        *req.s = db->ExecuteTransaction(req.operations, *req.read_buffer, 
+                                        req.read_only);
+      } else {
+        *req.s = db->Execute(req.operations[0], *req.read_buffer);
+      }
+      *req.finished = true;
+    }
+  }
+
+  static MemcacheResponse Read(MemcacheRequest &req,
+                               MemcachedClient *memcache_get,
+                               MemcachedClient *memcache_put,
+                               LockFreeQueue<DBRequest> *db_queue) {
+    MemcacheResponse resp;
+    const auto& operations = req.operations;
+    auto& read_buffer = resp.read_buffer;
+
+    resp.read_count += 1;
+    if (memcache_get->get(operations[0], read_buffer)) {
+      resp.s = Status::kOK;
+      resp.hit_count += 1;
     } else {
-      resp.s = db_->Execute(operation, read_buffer, false);
-      memcache_put_->invalidate(operation);
+      DB_REQUEST(operations, read_buffer, false, true, resp.s);
+      if (resp.s == Status::kOK) {
+        memcache_put->put(operations[0], read_buffer[0]);
+      }
     }
     return resp;
   }
 
-  MemcacheResponse ExecuteTransaction(MemcacheRequest req) {
-    assert(req.txn_op == true);
+  static MemcacheResponse Write(MemcacheRequest &req,
+                                MemcachedClient *memcache_put,
+                                LockFreeQueue<DBRequest> *db_queue) {
     MemcacheResponse resp;
     const auto& operations = req.operations;
     auto& read_buffer = resp.read_buffer;
-    if (req.read_only) {
-      std::vector<DB::DB_Operation> miss_ops;
-      std::vector<DB::TimestampValue> rsl_db;
+    DB_REQUEST(operations, read_buffer, false, false, resp.s);
+    memcache_put->invalidate(operations[0]);
+    return resp;
+  }
+
+  static MemcacheResponse ReadTxn(MemcacheRequest &req,
+                                  MemcachedClient *memcache_get,
+                                  MemcachedClient *memcache_put,
+                                  LockFreeQueue<DBRequest> *db_queue) {
+    MemcacheResponse resp;
+    const auto& operations = req.operations;
+    auto& read_buffer = resp.read_buffer;
+    std::vector<DB::DB_Operation> miss_ops;
+    std::vector<DB::TimestampValue> rsl_db;
       
-      resp.read_count += operations.size();
-      for (size_t i = 0; i < operations.size(); i++) {
-        if (memcache_get_->get(operations[i], read_buffer)) {
-          resp.hit_count++;
-        } else {
-          read_buffer.emplace_back(-1, "");
-          miss_ops.push_back(operations[i]);
-        }
-      }
-      assert(read_buffer.size() == operations.size());
-
-      if (miss_ops.empty()) {
-        resp.s = Status::kOK; 
-        return resp;
-      }
-
-      resp.s = db_->ExecuteTransaction(miss_ops, rsl_db, true);
-      if (resp.s == Status::kOK) {
-        size_t db_pos = 0;
-        for (size_t i = 0; i < operations.size(); i++) {
-          if (read_buffer[i].timestamp == -1){
-            read_buffer[i] = rsl_db[db_pos];
-            memcache_put_->put(operations[i], rsl_db[db_pos]);
-            db_pos++;
-          } 
-        }
+    resp.read_count += operations.size();
+    for (size_t i = 0; i < operations.size(); i++) {
+      if (memcache_get->get(operations[i], read_buffer)) {
+        resp.hit_count++;
       } else {
-        read_buffer.clear();
-      }
-    } else {
-      resp.s = db_->ExecuteTransaction(operations, read_buffer, false);
-      for (const DB::DB_Operation& op : operations) {
-        memcache_put_->invalidate(op);
+        read_buffer.emplace_back(-1, "");
+        miss_ops.push_back(operations[i]);
       }
     }
-    assert(!operations.empty());
+    assert(read_buffer.size() == operations.size());
 
+    if (miss_ops.empty()) {
+      resp.s = Status::kOK; 
+      return resp;
+    }
+
+    DB_REQUEST(operations, rsl_db, true, true, resp.s);
+    if (resp.s == Status::kOK) {
+      size_t db_pos = 0;
+      for (size_t i = 0; i < operations.size(); i++) {
+        if (read_buffer[i].timestamp == -1){
+          read_buffer[i] = rsl_db[db_pos];
+          memcache_put->put(operations[i], rsl_db[db_pos]);
+          db_pos++;
+        } 
+      }
+    } else {
+      read_buffer.clear();
+    }
+    return resp;
+  }
+
+  static MemcacheResponse WriteTxn(MemcacheRequest &req,
+                                   MemcachedClient *memcache_put,
+                                   LockFreeQueue<DBRequest> *db_queue) {
+    MemcacheResponse resp;
+    const auto& operations = req.operations;
+    auto& read_buffer = resp.read_buffer;
+    
+    DB_REQUEST(operations, read_buffer, true, false, resp.s);
+    for (const DB::DB_Operation& op : operations) {
+      memcache_put->invalidate(op);
+    }
     return resp;
   }
 
   DB *db_;
-  MemcachedClient *memcache_get_;
-  MemcachedClient *memcache_put_;
-  LockFreeQueue<MemcacheRequest> request_queue_;
-  std::future<void> poll_thread_;
+  LockFreeQueue<MemcacheRequest> read_queue_;
+  LockFreeQueue<MemcacheRequest> write_queue_;
+  LockFreeQueue<DBRequest> db_queue_;
+  std::vector<std::future<void>> thread_pool_;
 };
 
 } // benchmark

@@ -18,10 +18,10 @@ class DBFactory {
   static bool RegisterDB(std::string db_name, DBCreator db_creator);
   static DB *CreateDB(utils::Properties *props, Measurements *measurements, 
                       bool memcache=false);
+  static DB *CreateRawDB(utils::Properties *props);
   
  private:
   static MemcacheWrapper *GetMemcache(utils::Properties *props);
-  static DB *CreateRawDB(utils::Properties *props);
   static std::map<std::string, DBCreator> &Registry();
   static MemcacheWrapper *memcache_;
 };
