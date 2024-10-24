@@ -7,6 +7,8 @@
 #include <cassert>
 #include <future>
 #include <atomic>
+#include <cstdlib>
+#include <ctime>
 
 #include "db.h"
 #include "timer.h"
@@ -52,7 +54,9 @@ struct DBRequest {
 
 class MemcacheWrapper {
  public:
-  MemcacheWrapper(DB *db): db_(db) {}
+  MemcacheWrapper(DB *db): db_(db) {
+    std::srand(static_cast<unsigned>(std::time(0)));
+  }
   ~MemcacheWrapper() {}
   void Start() {
     for (size_t i = 0; i < RTHREADS; i++) {
