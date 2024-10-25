@@ -19,7 +19,11 @@ class DBWrapper : public DB {
  public:
   DBWrapper(DB *db, Measurements *measurements) :
     db_(db) , measurements_(measurements) {
-      memcache_ = new MemcachedClient();
+      std::vector<std::pair<std::string, in_port_t>> servers = {
+        {"127.0.0.1", 11211},
+        {"127.0.0.1", 11212}
+    };
+      memcache_ = new MemcachedClient(servers);
     }
   ~DBWrapper() {
     delete db_;
@@ -155,6 +159,7 @@ class DBWrapper : public DB {
   DB *db_;
   Measurements *measurements_;
   utils::Timer<uint64_t, std::nano> timer_;
+
   MemcachedClient *memcache_;
 };
 

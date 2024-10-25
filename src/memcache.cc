@@ -3,12 +3,25 @@
 
 namespace benchmark {
 
-MemcachedClient::MemcachedClient(const std::string &server, in_port_t port) {
-    // Create a Memcached instance
+MemcachedClient::MemcachedClient(const std::vector<std::pair<std::string, in_port_t>> &servers) {
+    // 创建一个 Memcached 实例
     memc = memcached_create(nullptr);
-    memcached_server_st *servers = memcached_server_list_append(nullptr, server.c_str(), port, nullptr);
-    memcached_server_push(memc, servers);
-    memcached_server_free(servers);
+
+    // 初始化服务器列表
+    memcached_server_st *server_list = nullptr;
+
+    // 循环遍历每个服务器并将其添加到服务器列表中
+    for (const auto &server : servers) {
+        const std::string &server_address = server.first;
+        in_port_t port = server.second;
+        server_list = memcached_server_list_append(server_list, server_address.c_str(), port, nullptr);
+    }
+
+    // 将服务器列表推送到 Memcached 实例
+    memcached_server_push(memc, server_list);
+
+    // 释放服务器列表
+    memcached_server_free(server_list);
 }
 
 MemcachedClient::~MemcachedClient() {
