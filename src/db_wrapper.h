@@ -20,8 +20,8 @@ class DBWrapper : public DB {
   DBWrapper(DB *db, Measurements *measurements) :
     db_(db) , measurements_(measurements) {
       std::vector<std::pair<std::string, in_port_t>> servers = {
-        {"127.0.0.1", 11211},
-        {"127.0.0.1", 11212}
+        {"127.0.0.1", 11211}
+        // {"127.0.0.1", 11213}
     };
       memcache_ = new MemcachedClient(servers);
     }
