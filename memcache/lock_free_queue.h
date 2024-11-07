@@ -3,22 +3,11 @@
 #include <thread>
 #include <iostream>
 #include <string>
-#include <type_traits>
-
-// Interface with a pure virtual to_string function
-class IStringify {
-public:
-    virtual ~IStringify() = default;
-
-    virtual void from_string(const std::string& str) = 0;
-    virtual std::string to_string() const = 0;
-};
+#include <msgpack.hpp>
 
 template <typename T>
 class LockFreeQueue
 {
-    static_assert(std::is_base_of<IStringify, T>::value, "T must inherit from IStringify");
-
 public:
     LockFreeQueue(std::string name="test", int timeout=-1) : 
         context(1), 
@@ -34,20 +23,25 @@ public:
 
     void enqueue(T value)
     {
-        std::string message = value.to_string();
-        zmq::message_t zmq_message(message.size());
-        memcpy(zmq_message.data(), message.c_str(), message.size());
-        push_socket.send(zmq_message);
+        msgpack::sbuffer sbuf;
+        msgpack::pack(sbuf, value);
+
+        zmq::message_t message(sbuf.size());
+        memcpy(message.data(), sbuf.data(), sbuf.size());
+        push_socket.send(message);
     }
 
     bool dequeue(T& value)
     {
-        zmq::message_t zmq_message;
-        if (!pull_socket.recv(&zmq_message)) {
+        zmq::message_t message;
+        if (!pull_socket.recv(&message)) {
             return false;
         };
-        std::string message(static_cast<char*>(zmq_message.data()), zmq_message.size());
-        value.from_string(message);
+        msgpack::object_handle handle = msgpack::unpack(
+            static_cast<const char*>(message.data()), message.size()
+        );
+        msgpack::object deserialized = handle.get();
+        deserialized.convert(value);
         return true;
     }
 private:

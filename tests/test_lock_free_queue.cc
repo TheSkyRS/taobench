@@ -1,6 +1,6 @@
 #include "../memcache/lock_free_queue.h"
 
-class Integer: public IStringify {
+class Integer {
 public:
     int value;
 
@@ -8,13 +8,7 @@ public:
         value = value_;
     }
 
-    void from_string(const std::string& str) override {
-        value = std::stoi(str);
-    }
-
-    std::string to_string() const override {
-        return std::to_string(value);
-    }
+    MSGPACK_DEFINE(value);
 };
 
 int main()
@@ -34,7 +28,7 @@ int main()
         {
             if (queue.dequeue(value))
             {
-                std::cout << "Dequeued value: " << value.to_string() << std::endl;
+                std::cout << "Dequeued value: " << value.value << std::endl;
             }
         }
     });
