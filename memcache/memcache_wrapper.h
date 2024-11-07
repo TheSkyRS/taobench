@@ -22,34 +22,47 @@
 #define DB_REQUEST(operations, read_buffer, txn_op, read_only, ret) \
     do { \
         std::atomic<bool> flag{false}; \
-        DBRequest db_req{operations, &read_buffer, txn_op, read_only, &ret, &flag}; \
+        DBRequest db_req{operations, ptr2uint(&read_buffer), txn_op, read_only, ptr2uint(&ret), ptr2uint(&flag)}; \
         db_queue->enqueue(db_req); \
         while (!flag); \
     } while (0)
 
 namespace benchmark {
 
+template <typename T>
+uintptr_t ptr2uint(T* const& v) {
+  return reinterpret_cast<uintptr_t>(v);
+}
+
+template <typename T>
+T* uint2ptr(uintptr_t const& v) {
+  return reinterpret_cast<T*>(v);
+}
+
 struct MemcacheResponse {
   std::vector<DB::TimestampValue> read_buffer;
   Status s;
   int hit_count = 0;
   int read_count = 0;
+  MSGPACK_DEFINE(read_buffer, s, hit_count, read_count);
 };
 
 struct MemcacheRequest {
   std::vector<DB::DB_Operation> operations;
-  LockFreeQueue<MemcacheResponse> *result_queue;
+  uintptr_t result_queue; // LockFreeQueue<MemcacheResponse>*
   bool txn_op;
   bool read_only;
+  MSGPACK_DEFINE(operations, result_queue, txn_op, read_only);
 };
 
 struct DBRequest {
   std::vector<DB::DB_Operation> operations;
-  std::vector<DB::TimestampValue> *read_buffer;
+  uintptr_t read_buffer; // std::vector<DB::TimestampValue>*
   bool txn_op;
   bool read_only;
-  Status* s;
-  std::atomic<bool>* finished;
+  uintptr_t s; // Status*
+  uintptr_t finished; // std::atomic<bool>*
+  MSGPACK_DEFINE(operations, read_buffer, txn_op, read_only, s, finished);
 };
 
 class MemcacheWrapper {
@@ -97,7 +110,8 @@ class MemcacheWrapper {
       } else {
         resp = Read(req, memcache_get, memcache_put, db_queue);
       }
-      req.result_queue->enqueue(resp);
+      auto* rq = uint2ptr<LockFreeQueue<MemcacheResponse>>(req.result_queue);
+      rq->enqueue(resp);
     }
   }
 
@@ -115,7 +129,8 @@ class MemcacheWrapper {
       } else {
         resp = Write(req, memcache_put, db_queue);
       }
-      req.result_queue->enqueue(resp);
+      auto* rq = uint2ptr<LockFreeQueue<MemcacheResponse>>(req.result_queue);
+      rq->enqueue(resp);
     }
   }
 
@@ -125,13 +140,15 @@ class MemcacheWrapper {
       if (!requests->dequeue(req)) {
         continue;
       }
+      auto* s = uint2ptr<Status>(req.s);
+      auto* read_buffer = uint2ptr<std::vector<DB::TimestampValue>>(req.read_buffer);
+      auto* finished = uint2ptr<bool>(req.finished);
       if (req.txn_op) {
-        *req.s = db->ExecuteTransaction(req.operations, *req.read_buffer, 
-                                        req.read_only);
+        *s = db->ExecuteTransaction(req.operations, *read_buffer, req.read_only);
       } else {
-        *req.s = db->Execute(req.operations[0], *req.read_buffer);
+        *s = db->Execute(req.operations[0], *read_buffer);
       }
-      *req.finished = true;
+      *finished = true;
     }
   }
 

@@ -6,6 +6,7 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <msgpack.hpp>
 
 namespace benchmark {
 
@@ -44,7 +45,13 @@ inline std::string DataTableToStr(DataTable table) {
       throw std::invalid_argument("Invalid datatable type");
   }
 }
+} // benchmark
 
+MSGPACK_ADD_ENUM(benchmark::Operation);
+MSGPACK_ADD_ENUM(benchmark::Status);
+MSGPACK_ADD_ENUM(benchmark::DataTable);
+
+namespace benchmark {
 ///
 /// Database interface layer.
 /// per-thread DB instance.
@@ -53,6 +60,8 @@ class DB {
  public:
 
   struct Field {
+    Field() = default;
+
     Field(std::string const & name_, int64_t value_) 
         : name(name_)
         , value(value_)
@@ -61,9 +70,13 @@ class DB {
 
     std::string name;
     int64_t value;
+
+    MSGPACK_DEFINE(name, value);
   };
 
   struct TimestampValue {
+    TimestampValue() = default;
+
     TimestampValue(int64_t timestamp_, std::string const & value_)
       : timestamp(timestamp_)
       , value(value_)
@@ -73,9 +86,12 @@ class DB {
 
     int64_t timestamp;
     std::string value;
+
+    MSGPACK_DEFINE(timestamp, value);
   };
 
   struct DB_Operation {
+    DB_Operation() = default;
 
     DB_Operation(DataTable tab, std::vector<Field> const & k, TimestampValue const & timeval, Operation op)
       : table(tab)
@@ -89,6 +105,8 @@ class DB {
     std::vector<Field> key; // 1 int for objects, 3 (id1, id2, type) for edge
     TimestampValue time_and_value;
     Operation operation;
+
+    MSGPACK_DEFINE(table, key, time_and_value, operation);
   };
   
 

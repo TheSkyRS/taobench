@@ -106,7 +106,7 @@ class DBWrapper : public DB {
                                std::vector<TimestampValue> &read_buffer,
                                bool txn_op, bool read_only, uint64_t& elapsed) {
     LockFreeQueue<MemcacheResponse> result_queue;
-    MemcacheRequest req{operations, &result_queue, txn_op, read_only};
+    MemcacheRequest req{operations, ptr2uint(&result_queue), txn_op, read_only};
     MemcacheResponse resp;
 
     timer_.Start();
