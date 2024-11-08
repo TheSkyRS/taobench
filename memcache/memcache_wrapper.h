@@ -20,19 +20,19 @@
 
 #define RTHREADS 2
 
-// #define DB_REQUEST(operations, read_buffer, txn_op, read_only, ret) \
-//     do { \
-//         std::atomic<bool> flag{false}; \
-//         DBRequest db_req{operations, ptr2uint(&read_buffer), txn_op, read_only, ptr2uint(&ret), ptr2uint(&flag)}; \
-//         db_queue->enqueue(db_req); \
-//         while (!flag); \
-//     } while (0)
-
 #define DB_REQUEST(operations, read_buffer, txn_op, read_only, ret) \
     do { \
-        for (int i = 0; i < operations.size(); i++) \
-          read_buffer.push_back({-1, ""}); \
+        std::atomic<bool> flag{false}; \
+        DBRequest db_req{operations, ptr2uint(&read_buffer), txn_op, read_only, ptr2uint(&ret), ptr2uint(&flag)}; \
+        db_queue->enqueue(db_req); \
+        while (!flag); \
     } while (0)
+
+// #define DB_REQUEST(operations, read_buffer, txn_op, read_only, ret) \
+//     do { \
+//         for (int i = 0; i < operations.size(); i++) \
+//           read_buffer.push_back({-1, ""}); \
+//     } while (0)
 
 namespace benchmark {
 
@@ -145,6 +145,8 @@ class MemcacheWrapper {
       auto* s = uint2ptr<Status>(req.s);
       auto* read_buffer = uint2ptr<std::vector<DB::TimestampValue>>(req.read_buffer);
       auto* finished = uint2ptr<bool>(req.finished);
+      // for (int i = 0; i < req.operations.size(); i++)
+      //   read_buffer->push_back({-1, ""});
       if (req.txn_op) {
         *s = db->ExecuteTransaction(req.operations, *read_buffer, req.read_only);
       } else {
