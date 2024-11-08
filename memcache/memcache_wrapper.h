@@ -9,6 +9,7 @@
 #include <atomic>
 #include <cstdlib>
 #include <zmq.hpp>
+#include <unordered_map>
 
 #include "db.h"
 #include "timer.h"
@@ -46,19 +47,22 @@ T* uint2ptr(uintptr_t const& v) {
 }
 
 struct MemcacheResponse {
+  uint64_t timestamp = 0;
   std::vector<DB::TimestampValue> read_buffer;
+  Operation operation = Operation::INVALID;
   Status s = Status::kOK;
   int hit_count = 0;
   int read_count = 0;
-  MSGPACK_DEFINE(read_buffer, s, hit_count, read_count);
+  MSGPACK_DEFINE(timestamp, read_buffer, operation, s, hit_count, read_count);
 };
 
 struct MemcacheRequest {
+  uint64_t timestamp;
   std::vector<DB::DB_Operation> operations;
   std::string resp_port;
   bool txn_op;
   bool read_only;
-  MSGPACK_DEFINE(operations, resp_port, txn_op, read_only);
+  MSGPACK_DEFINE(timestamp, operations, resp_port, txn_op, read_only);
 };
 
 struct DBRequest {
@@ -104,11 +108,15 @@ class MemcacheWrapper {
 
  private:
   static void PollRead(std::string port) {
+    std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
+
     WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port);
     MemcachedClient memcache_get;
     MemcachedClient memcache_put;
+
     WebQueuePush<DBRequest> db_queue(new zmq::context_t(1));
     db_queue.connect(zmq_db_port);
+
     MemcacheRequest req;
     MemcacheResponse resp;
     while (true) {
@@ -120,14 +128,26 @@ class MemcacheWrapper {
       } else {
         resp = Read(req, &memcache_get, &memcache_put, &db_queue);
       }
+      resp.timestamp = req.timestamp;
+
+      if (responses.find(req.resp_port) == responses.end()) {
+        responses[req.resp_port] = new WebQueuePush<MemcacheResponse>
+                                  (new zmq::context_t(1));
+        responses[req.resp_port]->connect(req.resp_port);
+      }
+      responses[req.resp_port]->enqueue(resp);
     }
   }
 
   static void PollWrite(std::string port) {
+    std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
+
     WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port);
     MemcachedClient memcache_put;
+
     WebQueuePush<DBRequest> db_queue(new zmq::context_t(1));
     db_queue.connect(zmq_db_port);
+
     MemcacheRequest req;
     MemcacheResponse resp;
     while (true) {
@@ -139,6 +159,14 @@ class MemcacheWrapper {
       } else {
         resp = Write(req, &memcache_put, &db_queue);
       }
+
+      resp.timestamp = req.timestamp;
+      if (responses.find(req.resp_port) == responses.end()) {
+        responses[req.resp_port] = new WebQueuePush<MemcacheResponse>
+                                  (new zmq::context_t(1));
+        responses[req.resp_port]->connect(req.resp_port);
+      }
+      responses[req.resp_port]->enqueue(resp);
     }
   }
 
@@ -171,6 +199,7 @@ class MemcacheWrapper {
     MemcacheResponse resp;
     const auto& operations = req.operations;
     auto& read_buffer = resp.read_buffer;
+    resp.operation = operations[0].operation;
 
     resp.read_count += 1;
     if (memcache_get->get(operations[0], read_buffer)) {
@@ -191,6 +220,8 @@ class MemcacheWrapper {
     MemcacheResponse resp;
     const auto& operations = req.operations;
     auto& read_buffer = resp.read_buffer;
+    resp.operation = operations[0].operation;
+
     DB_REQUEST(operations, read_buffer, false, false, resp.s);
     memcache_put->invalidate(operations[0]);
     return resp;
@@ -201,8 +232,10 @@ class MemcacheWrapper {
                                   MemcachedClient *memcache_put,
                                   WebQueuePush<DBRequest> *db_queue) {
     MemcacheResponse resp;
+    resp.operation = Operation::READTRANSACTION;
     const auto& operations = req.operations;
     auto& read_buffer = resp.read_buffer;
+    
     std::vector<DB::DB_Operation> miss_ops;
     std::vector<DB::TimestampValue> rsl_db;
       
@@ -242,6 +275,7 @@ class MemcacheWrapper {
                                    MemcachedClient *memcache_put,
                                    WebQueuePush<DBRequest> *db_queue) {
     MemcacheResponse resp;
+    resp.operation = Operation::WRITETRANSACTION;
     const auto& operations = req.operations;
     auto& read_buffer = resp.read_buffer;
     

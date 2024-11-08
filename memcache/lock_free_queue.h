@@ -14,6 +14,8 @@ class WebQueuePush
 public:
     WebQueuePush(zmq::context_t* ctx): ctx_(ctx) {}
 
+    ~WebQueuePush() {}
+
     void connect(std::string port="6000"){
         push_sockets.push_back(zmq::socket_t(*ctx_, ZMQ_PUSH));
         push_sockets[push_sockets.size()-1].connect("tcp://127.0.0.1:" + port);

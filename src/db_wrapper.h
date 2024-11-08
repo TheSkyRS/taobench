@@ -5,6 +5,8 @@
 #include <vector>
 #include <iostream>
 #include <cassert>
+#include <future>
+#include <chrono>
 
 #include "db.h"
 #include "measurements.h"
@@ -18,23 +20,26 @@ namespace benchmark {
 class DBWrapper : public DB {
  public:
   DBWrapper(DB *db, Measurements *measurements, int tid=0) :
-    db_(db) , measurements_(measurements), tid_(tid) {
-      if (tid >= 0) {
-        memcache_read = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
-        memcache_write = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
-        memcache_read->connect(zmq_read_ports[tid % zmq_read_ports.size()]);
-        memcache_write->connect(zmq_write_ports[tid % zmq_write_ports.size()]);
-      }
+    db_(db), tid_(tid), ans_port(std::to_string(7000+tid)), measurements_(measurements) 
+  {
+    if (tid >= 0) {
+      memcache_read = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
+      memcache_write = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
+      memcache_ans = new WebQueuePull<MemcacheResponse>(new zmq::context_t(1), ans_port);
+      memcache_read->connect(zmq_read_ports[tid % zmq_read_ports.size()]);
+      memcache_write->connect(zmq_write_ports[tid % zmq_write_ports.size()]);
+      thread_pool_.push_back(std::async(std::launch::async, PullResp, this));
     }
+  }
   ~DBWrapper() {
     delete db_;
     if(memcache_read) delete memcache_read;
     if(memcache_write) delete memcache_write;
   }
-  void Init() {
+  void Init() { // deprecated
     db_->Init();
   }
-  void Cleanup() {
+  void Cleanup() { // deprecated
     db_->Cleanup();
   }
   Status Read(DataTable table, const std::vector<Field> &key,
@@ -65,33 +70,16 @@ class DBWrapper : public DB {
   {
     bool read_only = operation.operation == Operation::READ;
     const std::vector<DB::DB_Operation> operations{operation};
-    uint64_t elapsed = 0;
-    auto resp = SendCommand(operations, read_buffer, txn_op, read_only, elapsed);
-
-    if (resp.s == Status::kOK) {
-      measurements_->Report(operation.operation, elapsed);
-      measurements_->ReportRead(resp.hit_count, resp.read_count);
-    }
-    return resp.s;
+    SendCommand(operations, txn_op, read_only);
+    return Status::kOK;
   }
 
   Status ExecuteTransaction(const std::vector<DB_Operation> &operations,
                             std::vector<TimestampValue> &read_buffer,
                             bool read_only = false) 
   {
-    uint64_t elapsed = 0;
-    auto resp = SendCommand(operations, read_buffer, true, read_only, elapsed);
-
-    if (resp.s != Status::kOK) {
-      return resp.s;
-    }
-    if (read_only) {
-      measurements_->Report(Operation::READTRANSACTION, elapsed);
-      measurements_->ReportRead(resp.hit_count, resp.read_count);
-    } else {
-      measurements_->Report(Operation::WRITETRANSACTION, elapsed);
-    }
-    return resp.s;
+    SendCommand(operations, true, read_only);
+    return Status::kOK;
   }
 
   Status BatchInsert(DataTable table, 
@@ -111,29 +99,44 @@ class DBWrapper : public DB {
   }
 
  private:
-  MemcacheResponse SendCommand(const std::vector<DB_Operation> &operations,
-                               std::vector<TimestampValue> &read_buffer,
-                               bool txn_op, bool read_only, uint64_t& elapsed) {
-    MemcacheRequest req{operations, txn_op, read_only};
-    timer_.Start();
+  static uint64_t getTimestamp() {
+    auto now = std::chrono::system_clock::now();
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
+  }
+
+  static void PullResp(DBWrapper* clz) {
+    MemcacheResponse resp;
+    while (true) {
+      if (!clz->memcache_ans->dequeue(resp)) {
+        continue;
+      }
+      uint64_t elapsed = getTimestamp() - resp.timestamp;
+      if (resp.s == Status::kOK) {
+        clz->measurements_->Report(resp.operation, elapsed);
+        clz->measurements_->ReportRead(resp.hit_count, resp.read_count);
+      }
+    }
+  }
+
+  void SendCommand(const std::vector<DB_Operation> &operations, bool txn_op, bool read_only) {
+    MemcacheRequest req{getTimestamp(), operations, ans_port, txn_op, read_only};
     if (read_only) {
       memcache_read->enqueue(req);
     } else {
       memcache_write->enqueue(req);
     }
-    MemcacheResponse resp;
-    // read_buffer.insert(read_buffer.end(), resp.read_buffer.begin(), resp.read_buffer.end());
-    elapsed = timer_.End();
-    return resp;
   }
 
   DB *db_;
   int tid_;
+  std::string ans_port;
   Measurements *measurements_;
   utils::Timer<uint64_t, std::nano> timer_;
 
   WebQueuePush<MemcacheRequest>* memcache_read = nullptr;
   WebQueuePush<MemcacheRequest>* memcache_write = nullptr;
+  WebQueuePull<MemcacheResponse>* memcache_ans = nullptr;
+  std::vector<std::future<void>> thread_pool_;
 };
 
 } // benchmark

@@ -20,6 +20,7 @@ enum class Operation {
   READTRANSACTION,
   WRITETRANSACTION,
   MAXOPTYPE,
+  INVALID
 };
 
 enum class Status {
