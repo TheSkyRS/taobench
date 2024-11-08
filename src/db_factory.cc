@@ -20,8 +20,9 @@ DB *DBFactory::CreateDB(utils::Properties *props, Measurements *measurements,
   if (db != nullptr) {
     if (memcache) {
       GetMemcache(props);
+      return new DBWrapper(db, measurements, tid);
     }
-    return new DBWrapper(db, measurements, tid);
+    return new DBWrapper(db, measurements, -1);
   }
   return nullptr;
 }

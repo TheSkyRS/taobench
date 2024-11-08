@@ -18,14 +18,18 @@ namespace benchmark {
 class DBWrapper : public DB {
  public:
   DBWrapper(DB *db, Measurements *measurements, int tid=0) :
-    db_(db) , measurements_(measurements), tid_(tid), 
-    memcache_read(new zmq::context_t(1)),
-    memcache_write(new zmq::context_t(1)) {
-      memcache_read.connect(zmq_read_ports[tid % zmq_read_ports.size()]);
-      memcache_write.connect(zmq_write_ports[tid % zmq_write_ports.size()]);
+    db_(db) , measurements_(measurements), tid_(tid) {
+      if (tid >= 0) {
+        memcache_read = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
+        memcache_write = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
+        memcache_read->connect(zmq_read_ports[tid % zmq_read_ports.size()]);
+        memcache_write->connect(zmq_write_ports[tid % zmq_write_ports.size()]);
+      }
     }
   ~DBWrapper() {
     delete db_;
+    if(memcache_read) delete memcache_read;
+    if(memcache_write) delete memcache_write;
   }
   void Init() {
     db_->Init();
@@ -113,9 +117,9 @@ class DBWrapper : public DB {
     MemcacheRequest req{operations, txn_op, read_only};
     timer_.Start();
     if (read_only) {
-      memcache_read.enqueue(req);
+      memcache_read->enqueue(req);
     } else {
-      memcache_write.enqueue(req);
+      memcache_write->enqueue(req);
     }
     MemcacheResponse resp;
     // read_buffer.insert(read_buffer.end(), resp.read_buffer.begin(), resp.read_buffer.end());
@@ -128,8 +132,8 @@ class DBWrapper : public DB {
   Measurements *measurements_;
   utils::Timer<uint64_t, std::nano> timer_;
 
-  WebQueuePush<MemcacheRequest> memcache_read;
-  WebQueuePush<MemcacheRequest> memcache_write;
+  WebQueuePush<MemcacheRequest>* memcache_read = nullptr;
+  WebQueuePush<MemcacheRequest>* memcache_write = nullptr;
 };
 
 } // benchmark
