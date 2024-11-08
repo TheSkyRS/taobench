@@ -14,9 +14,9 @@ class WebQueuePush
 public:
     WebQueuePush(zmq::context_t* ctx): ctx_(ctx) {}
 
-    void connect(std::string port="test"){
+    void connect(std::string port="6000"){
         push_sockets.push_back(zmq::socket_t(*ctx_, ZMQ_PUSH));
-        push_sockets[push_sockets.size()-1].connect("inproc://" + port);
+        push_sockets[push_sockets.size()-1].connect("tcp://127.0.0.1:" + port);
         std::cout << "ZeroMQ connecting to " << port << std::endl;
     }
 
@@ -39,10 +39,10 @@ template <typename T>
 class WebQueuePull
 {
 public:
-    WebQueuePull(zmq::context_t* ctx, std::string port="test", int timeout=-1): 
+    WebQueuePull(zmq::context_t* ctx, std::string port="6000", int timeout=-1): 
         ctx_(ctx), pull_socket(*ctx_, ZMQ_PULL) 
     {
-        pull_socket.bind("inproc://" + port);
+        pull_socket.bind("tcp://127.0.0.1:" + port);
         pull_socket.setsockopt(ZMQ_RCVTIMEO, &timeout, sizeof(timeout));
         std::cout << "ZeroMQ listening on " << port << std::endl;
     }
@@ -71,8 +71,8 @@ template <typename T>
 class WebQueue
 {
 public:
-    WebQueue(std::string port="test", int timeout=-1):
-        context(1), push(&context), pull(&context, port, timeout) 
+    WebQueue(std::string port="6000", int timeout=-1):
+        push(new zmq::context_t(1)), pull(new zmq::context_t(1), port, timeout) 
     {
         push.connect(port);
     }
@@ -88,7 +88,6 @@ public:
     } 
 
 private:
-    zmq::context_t context;
     WebQueuePush<T> push;
     WebQueuePull<T> pull;
 };

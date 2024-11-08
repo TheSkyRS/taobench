@@ -250,10 +250,9 @@ class MemcacheWrapper {
   
   DB *db_;
 
-  WebQueue<MemcacheRequest> read_queues_[RTHREADS] = {{"r0"}, {"r1"}};
-  WebQueue<MemcacheRequest> write_queues_[RTHREADS] = {{"w0"}, {"w1"}};
-  WebQueue<MemcacheResponse> ans_queues_[RTHREADS] = {{"a0"}, {"a1"}};
-  WebQueue<DBRequest> db_queue_ = {"db0"};
+  WebQueue<MemcacheRequest> read_queues_[RTHREADS] = {{"6100"}, {"6101"}};
+  WebQueue<MemcacheRequest> write_queues_[RTHREADS] = {{"6200"}, {"6201"}};
+  WebQueue<DBRequest> db_queue_ = {"6400"};
 
   std::vector<std::future<void>> thread_pool_;
   std::atomic<uint64_t> cmd_count_ = 0;
