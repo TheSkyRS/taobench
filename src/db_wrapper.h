@@ -17,9 +17,12 @@ namespace benchmark {
 // Wrapper Class around DB; times and logs each Execute and ExecuteTransaction operation.
 class DBWrapper : public DB {
  public:
-  DBWrapper(DB *db, Measurements *measurements, MemcacheWrapper *memcache, int tid=0) :
-    db_(db) , measurements_(measurements) , memcache_(memcache) , tid_(tid) {
-      std::srand(static_cast<unsigned>(std::time(0)));
+  DBWrapper(DB *db, Measurements *measurements, int tid=0) :
+    db_(db) , measurements_(measurements), tid_(tid), 
+    memcache_read(new zmq::context_t(1)),
+    memcache_write(new zmq::context_t(1)) {
+      memcache_read.connect(zmq_read_ports[tid % zmq_read_ports.size()]);
+      memcache_write.connect(zmq_write_ports[tid % zmq_write_ports.size()]);
     }
   ~DBWrapper() {
     delete db_;
@@ -109,7 +112,11 @@ class DBWrapper : public DB {
                                bool txn_op, bool read_only, uint64_t& elapsed) {
     MemcacheRequest req{operations, txn_op, read_only};
     timer_.Start();
-    memcache_->SendCommand(req, tid_);
+    if (read_only) {
+      memcache_read.enqueue(req);
+    } else {
+      memcache_write.enqueue(req);
+    }
     MemcacheResponse resp;
     // read_buffer.insert(read_buffer.end(), resp.read_buffer.begin(), resp.read_buffer.end());
     elapsed = timer_.End();
@@ -120,7 +127,9 @@ class DBWrapper : public DB {
   int tid_;
   Measurements *measurements_;
   utils::Timer<uint64_t, std::nano> timer_;
-  MemcacheWrapper *memcache_;
+
+  WebQueuePush<MemcacheRequest> memcache_read;
+  WebQueuePush<MemcacheRequest> memcache_write;
 };
 
 } // benchmark

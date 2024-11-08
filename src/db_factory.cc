@@ -18,10 +18,10 @@ DB *DBFactory::CreateDB(utils::Properties *props, Measurements *measurements,
   bool memcache, int tid) {
   DB *db = CreateRawDB(props);
   if (db != nullptr) {
-    if (!memcache) {
-      return new DBWrapper(db, measurements, nullptr);
+    if (memcache) {
+      GetMemcache(props);
     }
-    return new DBWrapper(db, measurements, GetMemcache(props), tid);
+    return new DBWrapper(db, measurements, tid);
   }
   return nullptr;
 }
