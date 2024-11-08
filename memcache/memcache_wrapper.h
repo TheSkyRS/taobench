@@ -81,34 +81,19 @@ class MemcacheWrapper {
 
   void Start() {
     for (size_t i = 0; i < RTHREADS; i++) {
-      read_ctx_[i] = new zmq::context_t(1);
-      read_queues_[i].init(*read_ctx_[i]);
       thread_pool_.push_back(
-        std::async(std::launch::async, PollRead, &read_queues_[i], &db_queue_, i)
+        std::async(std::launch::async, PollRead, &read_queues_[i], &db_queue_)
       );
-
-      write_ctx_[i] = new zmq::context_t(1);
-      write_queues_[i].init(*write_ctx_[i]);
       thread_pool_.push_back(
         std::async(std::launch::async, PollWrite, &write_queues_[i], &db_queue_)
       );
     }
-
-    db_ctx_ = new zmq::context_t(1);
-    db_queue_.init(*db_ctx_);
     thread_pool_.push_back(
       std::async(std::launch::async, DBThread, &db_queue_, db_)
     );
   }
 
-  void Reset() {
-    for (size_t i = 0; i < RTHREADS; i++) {
-      if (read_ctx_[i]) delete read_ctx_[i];
-      if (write_ctx_[i]) delete write_ctx_[i];
-      if (ans_ctx_[i]) delete ans_ctx_[i];
-    }
-    if (db_ctx_) delete db_ctx_;
-  }
+  void Reset() {}
 
   void SendCommand(MemcacheRequest req, int idx=0) {
     if (req.read_only) {
@@ -120,7 +105,7 @@ class MemcacheWrapper {
 
  private:
   static void PollRead(WebQueue<MemcacheRequest> *requests, 
-                       WebQueue<DBRequest> *db_queue, int tid) {
+                       WebQueue<DBRequest> *db_queue) {
     MemcachedClient *memcache_get = new MemcachedClient();
     MemcachedClient *memcache_put = new MemcachedClient();
     MemcacheRequest req;
@@ -265,15 +250,10 @@ class MemcacheWrapper {
   
   DB *db_;
 
-  zmq::context_t* read_ctx_[RTHREADS] = {nullptr};
-  zmq::context_t* write_ctx_[RTHREADS] = {nullptr};
-  zmq::context_t* ans_ctx_[RTHREADS] = {nullptr};
-  zmq::context_t* db_ctx_ = nullptr;
-
-  WebQueue<MemcacheRequest> read_queues_[RTHREADS];
-  WebQueue<MemcacheRequest> write_queues_[RTHREADS];
-  WebQueue<MemcacheResponse> ans_queues_[RTHREADS];
-  WebQueue<DBRequest> db_queue_;
+  WebQueue<MemcacheRequest> read_queues_[RTHREADS] = {{"r0"}, {"r1"}};
+  WebQueue<MemcacheRequest> write_queues_[RTHREADS] = {{"w0"}, {"w1"}};
+  WebQueue<MemcacheResponse> ans_queues_[RTHREADS] = {{"a0"}, {"a1"}};
+  WebQueue<DBRequest> db_queue_ = {"db0"};
 
   std::vector<std::future<void>> thread_pool_;
   std::atomic<uint64_t> cmd_count_ = 0;

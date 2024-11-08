@@ -6,98 +6,53 @@
 #include <msgpack.hpp>
 #include <queue>
 #include <cassert>
-#include <atomic>
-
-#ifdef SIMPLE_QUEUE
+#include <vector>
 
 template <typename T>
-class WebQueue
+class WebQueuePush
 {
 public:
-    WebQueue(): m_head(new Node), m_tail(m_head.load()) {}
+    WebQueuePush(zmq::context_t* ctx): ctx_(ctx) {}
 
-    ~WebQueue()
-    {
-        while (Node* const old_head = m_head)
-        {
-            m_head = old_head->next;
-            delete old_head;
-        }
+    void connect(std::string port="test"){
+        push_sockets.push_back(zmq::socket_t(*ctx_, ZMQ_PUSH));
+        push_sockets[push_sockets.size()-1].connect("inproc://" + port);
+        std::cout << "ZeroMQ connecting to " << port << std::endl;
     }
 
-    void init(zmq::context_t& context, std::string name="test", int timeout=-1) {}
-
-    void enqueue(T value)
+    void enqueue(T value, int idx=0)
     {
-        Node* const new_node = new Node(value);
-        Node* old_tail = m_tail.exchange(new_node);
-        old_tail->next = new_node;
-    }
-    bool dequeue(T& value)
-    {
-        Node* old_head = m_head;
-        Node* new_head;
-        do
-        {
-            if (old_head->next == nullptr)
-            {
-                return false;
-            }
-            new_head = old_head->next;
-        } while (!m_head.compare_exchange_weak(old_head, new_head));
-        value = new_head->value;
-        delete old_head;
-        return true;
-    }
-private:
-    struct Node
-    {
-        T value;
-        Node* next;
-        Node() : next(nullptr) {}
-        Node(T value) : value(value), next(nullptr) {}
-    };
-    std::atomic<Node*> m_head;
-    std::atomic<Node*> m_tail;
-};
-
-#else
-
-template <typename T>
-class WebQueue
-{
-public:
-    WebQueue() {}
-
-    ~WebQueue() {
-        if (push_socket) delete push_socket;
-        if (pull_socket) delete pull_socket;
-    }
-
-    void init(zmq::context_t& context, std::string name="test", int timeout=-1)
-    {
-        push_socket = new zmq::socket_t(context, ZMQ_PUSH);
-        pull_socket = new zmq::socket_t(context, ZMQ_PULL);
-        push_socket->bind("inproc://lfq_" + name);
-        pull_socket->connect("inproc://lfq_" + name);
-        pull_socket->setsockopt(ZMQ_RCVTIMEO, &timeout, sizeof(timeout));
-        std::cout << "creating ZeroMQ" << std::endl;
-    }
-
-    void enqueue(T value)
-    {
+        assert(idx < push_sockets.size());
         msgpack::sbuffer sbuf;
         msgpack::pack(sbuf, value);
 
         zmq::message_t message(sbuf.size());
         memcpy(message.data(), sbuf.data(), sbuf.size());
-        push_socket->send(message);
+        push_sockets[idx].send(message);
     }
+private:
+    zmq::context_t* ctx_;
+    std::vector<zmq::socket_t> push_sockets;
+};
+
+template <typename T>
+class WebQueuePull
+{
+public:
+    WebQueuePull(zmq::context_t* ctx, std::string port="test", int timeout=-1): 
+        ctx_(ctx), pull_socket(*ctx_, ZMQ_PULL) 
+    {
+        pull_socket.bind("inproc://" + port);
+        pull_socket.setsockopt(ZMQ_RCVTIMEO, &timeout, sizeof(timeout));
+        std::cout << "ZeroMQ listening on " << port << std::endl;
+    }
+
+    ~WebQueuePull() {}
 
     bool dequeue(T& value)
     {
         zmq::message_t message;
-        if (!pull_socket->recv(&message)) {
+        if (!pull_socket.recv(&message)) {
             return false;
         };
         msgpack::object_handle handle = msgpack::unpack(
@@ -108,8 +63,32 @@ public:
         return true;
     }
 private:
-    zmq::socket_t* push_socket = nullptr;
-    zmq::socket_t* pull_socket = nullptr;
+    zmq::context_t* ctx_;
+    zmq::socket_t pull_socket;
 };
 
-#endif
+template <typename T>
+class WebQueue
+{
+public:
+    WebQueue(std::string port="test", int timeout=-1):
+        context(1), push(&context), pull(&context, port, timeout) 
+    {
+        push.connect(port);
+    }
+
+    ~WebQueue() {}
+
+    void enqueue(T value) {
+        push.enqueue(value);
+    }
+
+    bool dequeue(T& value) {
+        return pull.dequeue(value);
+    } 
+
+private:
+    zmq::context_t context;
+    WebQueuePush<T> push;
+    WebQueuePull<T> pull;
+};
