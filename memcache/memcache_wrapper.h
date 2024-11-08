@@ -8,8 +8,7 @@
 #include <future>
 #include <atomic>
 #include <cstdlib>
-#include <ctime>
-#include <queue>
+#include <zmq.hpp>
 
 #include "db.h"
 #include "timer.h"
@@ -20,19 +19,19 @@
 
 #define RTHREADS 2
 
-#define DB_REQUEST(operations, read_buffer, txn_op, read_only, ret) \
-    do { \
-        std::atomic<bool> flag{false}; \
-        DBRequest db_req{operations, ptr2uint(&read_buffer), txn_op, read_only, ptr2uint(&ret), ptr2uint(&flag)}; \
-        db_queue->enqueue(db_req); \
-        while (!flag); \
-    } while (0)
-
 // #define DB_REQUEST(operations, read_buffer, txn_op, read_only, ret) \
 //     do { \
-//         for (int i = 0; i < operations.size(); i++) \
-//           read_buffer.push_back({-1, ""}); \
+//         std::atomic<bool> flag{false}; \
+//         DBRequest db_req{operations, ptr2uint(&read_buffer), txn_op, read_only, ptr2uint(&ret), ptr2uint(&flag)}; \
+//         db_queue->enqueue(db_req); \
+//         while (!flag); \
 //     } while (0)
+
+#define DB_REQUEST(operations, read_buffer, txn_op, read_only, ret) \
+    do { \
+        for (int i = 0; i < operations.size(); i++) \
+          read_buffer.push_back({-1, ""}); \
+    } while (0)
 
 namespace benchmark {
 
@@ -75,21 +74,40 @@ class MemcacheWrapper {
  public:
   MemcacheWrapper(DB *db): db_(db) {
     std::cout << "creating MemcacheWrapper" << std::endl;
-    std::srand(static_cast<unsigned>(std::time(0)));
   }
-  ~MemcacheWrapper() {}
+  ~MemcacheWrapper() {
+    Reset();
+  }
+
   void Start() {
     for (size_t i = 0; i < RTHREADS; i++) {
+      read_ctx_[i] = new zmq::context_t(1);
+      read_queues_[i].init(*read_ctx_[i]);
       thread_pool_.push_back(
         std::async(std::launch::async, PollRead, &read_queues_[i], &db_queue_, i)
       );
+
+      write_ctx_[i] = new zmq::context_t(1);
+      write_queues_[i].init(*write_ctx_[i]);
       thread_pool_.push_back(
         std::async(std::launch::async, PollWrite, &write_queues_[i], &db_queue_)
       );
     }
+
+    db_ctx_ = new zmq::context_t(1);
+    db_queue_.init(*db_ctx_);
     thread_pool_.push_back(
       std::async(std::launch::async, DBThread, &db_queue_, db_)
     );
+  }
+
+  void Reset() {
+    for (size_t i = 0; i < RTHREADS; i++) {
+      if (read_ctx_[i]) delete read_ctx_[i];
+      if (write_ctx_[i]) delete write_ctx_[i];
+      if (ans_ctx_[i]) delete ans_ctx_[i];
+    }
+    if (db_ctx_) delete db_ctx_;
   }
 
   void SendCommand(MemcacheRequest req, int idx=0) {
@@ -246,10 +264,17 @@ class MemcacheWrapper {
   }
   
   DB *db_;
-  WebQueue<MemcacheRequest> read_queues_[RTHREADS] = {{"r1"}, {"r2"}};
-  WebQueue<MemcacheRequest> write_queues_[RTHREADS] = {{"w1"}, {"w2"}};
-  WebQueue<MemcacheResponse> ans_queues_[RTHREADS] = {{"a1"}, {"a2"}};
-  WebQueue<DBRequest> db_queue_ = {"db1"};
+
+  zmq::context_t* read_ctx_[RTHREADS] = {nullptr};
+  zmq::context_t* write_ctx_[RTHREADS] = {nullptr};
+  zmq::context_t* ans_ctx_[RTHREADS] = {nullptr};
+  zmq::context_t* db_ctx_ = nullptr;
+
+  WebQueue<MemcacheRequest> read_queues_[RTHREADS];
+  WebQueue<MemcacheRequest> write_queues_[RTHREADS];
+  WebQueue<MemcacheResponse> ans_queues_[RTHREADS];
+  WebQueue<DBRequest> db_queue_;
+
   std::vector<std::future<void>> thread_pool_;
   std::atomic<uint64_t> cmd_count_ = 0;
 };

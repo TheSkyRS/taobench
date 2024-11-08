@@ -18,7 +18,9 @@ namespace benchmark {
 class DBWrapper : public DB {
  public:
   DBWrapper(DB *db, Measurements *measurements, MemcacheWrapper *memcache, int tid=0) :
-    db_(db) , measurements_(measurements) , memcache_(memcache) , tid_(tid) {}
+    db_(db) , measurements_(measurements) , memcache_(memcache) , tid_(tid) {
+      std::srand(static_cast<unsigned>(std::time(0)));
+    }
   ~DBWrapper() {
     delete db_;
   }
