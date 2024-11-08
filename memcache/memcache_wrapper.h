@@ -136,7 +136,7 @@ class MemcacheWrapper {
     }
   }
 
-  // Has Segmentation Fault
+  // Has segmentation fault, and db + loop wait is slow (when 0 hit)
   static void DBThread(WebQueue<DBRequest> *requests, DB *db) {
     DBRequest req;
     while (true) {
@@ -146,13 +146,13 @@ class MemcacheWrapper {
       auto* s = uint2ptr<Status>(req.s);
       auto* read_buffer = uint2ptr<std::vector<DB::TimestampValue>>(req.read_buffer);
       auto* finished = uint2ptr<bool>(req.finished);
-      // for (int i = 0; i < req.operations.size(); i++)
-      //   read_buffer->push_back({-1, ""});
-      if (req.txn_op) {
-        *s = db->ExecuteTransaction(req.operations, *read_buffer, req.read_only);
-      } else {
-        *s = db->Execute(req.operations[0], *read_buffer);
-      }
+      for (int i = 0; i < req.operations.size(); i++)
+        read_buffer->push_back({-1, ""});
+      // if (req.txn_op) {
+      //   *s = db->ExecuteTransaction(req.operations, *read_buffer, req.read_only);
+      // } else {
+      //   *s = db->Execute(req.operations[0], *read_buffer);
+      // }
       *finished = true;
     }
   }
