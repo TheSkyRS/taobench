@@ -9,6 +9,7 @@
 #include <atomic>
 #include <cstdlib>
 #include <ctime>
+#include <queue>
 
 #include "db.h"
 #include "timer.h"
@@ -19,12 +20,18 @@
 
 #define RTHREADS 2
 
+// #define DB_REQUEST(operations, read_buffer, txn_op, read_only, ret) \
+//     do { \
+//         std::atomic<bool> flag{false}; \
+//         DBRequest db_req{operations, ptr2uint(&read_buffer), txn_op, read_only, ptr2uint(&ret), ptr2uint(&flag)}; \
+//         db_queue->enqueue(db_req); \
+//         while (!flag); \
+//     } while (0)
+
 #define DB_REQUEST(operations, read_buffer, txn_op, read_only, ret) \
     do { \
-        std::atomic<bool> flag{false}; \
-        DBRequest db_req{operations, ptr2uint(&read_buffer), txn_op, read_only, ptr2uint(&ret), ptr2uint(&flag)}; \
-        db_queue->enqueue(db_req); \
-        while (!flag); \
+        for (int i = 0; i < operations.size(); i++) \
+          read_buffer.push_back({-1, ""}); \
     } while (0)
 
 namespace benchmark {
@@ -41,7 +48,7 @@ T* uint2ptr(uintptr_t const& v) {
 
 struct MemcacheResponse {
   std::vector<DB::TimestampValue> read_buffer;
-  Status s;
+  Status s = Status::kOK;
   int hit_count = 0;
   int read_count = 0;
   MSGPACK_DEFINE(read_buffer, s, hit_count, read_count);
@@ -49,10 +56,9 @@ struct MemcacheResponse {
 
 struct MemcacheRequest {
   std::vector<DB::DB_Operation> operations;
-  uintptr_t result_queue; // LockFreeQueue<MemcacheResponse>*
   bool txn_op;
   bool read_only;
-  MSGPACK_DEFINE(operations, result_queue, txn_op, read_only);
+  MSGPACK_DEFINE(operations, txn_op, read_only);
 };
 
 struct DBRequest {
@@ -68,6 +74,7 @@ struct DBRequest {
 class MemcacheWrapper {
  public:
   MemcacheWrapper(DB *db): db_(db) {
+    std::cout << "creating MemcacheWrapper" << std::endl;
     std::srand(static_cast<unsigned>(std::time(0)));
   }
   ~MemcacheWrapper() {}
@@ -94,8 +101,8 @@ class MemcacheWrapper {
   }
 
  private:
-  static void PollRead(LockFreeQueue<MemcacheRequest> *requests, 
-                       LockFreeQueue<DBRequest> *db_queue, int tid) {
+  static void PollRead(WebQueue<MemcacheRequest> *requests, 
+                       WebQueue<DBRequest> *db_queue, int tid) {
     MemcachedClient *memcache_get = new MemcachedClient();
     MemcachedClient *memcache_put = new MemcachedClient();
     MemcacheRequest req;
@@ -104,19 +111,16 @@ class MemcacheWrapper {
       if (!requests->dequeue(req)) {
         continue;
       }
-      // std::cout << "read" << tid << std::endl;
       if (req.txn_op) {
         resp = ReadTxn(req, memcache_get, memcache_put, db_queue);
       } else {
         resp = Read(req, memcache_get, memcache_put, db_queue);
       }
-      auto* rq = uint2ptr<LockFreeQueue<MemcacheResponse>>(req.result_queue);
-      rq->enqueue(resp);
     }
   }
 
-  static void PollWrite(LockFreeQueue<MemcacheRequest> *requests,
-                        LockFreeQueue<DBRequest> *db_queue) {
+  static void PollWrite(WebQueue<MemcacheRequest> *requests,
+                        WebQueue<DBRequest> *db_queue) {
     MemcachedClient *memcache_put = new MemcachedClient();
     MemcacheRequest req;
     MemcacheResponse resp;
@@ -129,12 +133,10 @@ class MemcacheWrapper {
       } else {
         resp = Write(req, memcache_put, db_queue);
       }
-      auto* rq = uint2ptr<LockFreeQueue<MemcacheResponse>>(req.result_queue);
-      rq->enqueue(resp);
     }
   }
 
-  static void DBThread(LockFreeQueue<DBRequest> *requests, DB *db) {
+  static void DBThread(WebQueue<DBRequest> *requests, DB *db) {
     DBRequest req;
     while (true) {
       if (!requests->dequeue(req)) {
@@ -155,7 +157,7 @@ class MemcacheWrapper {
   static MemcacheResponse Read(MemcacheRequest &req,
                                MemcachedClient *memcache_get,
                                MemcachedClient *memcache_put,
-                               LockFreeQueue<DBRequest> *db_queue) {
+                               WebQueue<DBRequest> *db_queue) {
     MemcacheResponse resp;
     const auto& operations = req.operations;
     auto& read_buffer = resp.read_buffer;
@@ -175,7 +177,7 @@ class MemcacheWrapper {
 
   static MemcacheResponse Write(MemcacheRequest &req,
                                 MemcachedClient *memcache_put,
-                                LockFreeQueue<DBRequest> *db_queue) {
+                                WebQueue<DBRequest> *db_queue) {
     MemcacheResponse resp;
     const auto& operations = req.operations;
     auto& read_buffer = resp.read_buffer;
@@ -187,7 +189,7 @@ class MemcacheWrapper {
   static MemcacheResponse ReadTxn(MemcacheRequest &req,
                                   MemcachedClient *memcache_get,
                                   MemcachedClient *memcache_put,
-                                  LockFreeQueue<DBRequest> *db_queue) {
+                                  WebQueue<DBRequest> *db_queue) {
     MemcacheResponse resp;
     const auto& operations = req.operations;
     auto& read_buffer = resp.read_buffer;
@@ -228,7 +230,7 @@ class MemcacheWrapper {
 
   static MemcacheResponse WriteTxn(MemcacheRequest &req,
                                    MemcachedClient *memcache_put,
-                                   LockFreeQueue<DBRequest> *db_queue) {
+                                   WebQueue<DBRequest> *db_queue) {
     MemcacheResponse resp;
     const auto& operations = req.operations;
     auto& read_buffer = resp.read_buffer;
@@ -241,9 +243,10 @@ class MemcacheWrapper {
   }
   
   DB *db_;
-  LockFreeQueue<MemcacheRequest> read_queues_[RTHREADS];
-  LockFreeQueue<MemcacheRequest> write_queues_[RTHREADS];
-  LockFreeQueue<DBRequest> db_queue_;
+  WebQueue<MemcacheRequest> read_queues_[RTHREADS] = {{"r1"}, {"r2"}};
+  WebQueue<MemcacheRequest> write_queues_[RTHREADS] = {{"w1"}, {"w2"}};
+  WebQueue<MemcacheResponse> ans_queues_[RTHREADS] = {{"a1"}, {"a2"}};
+  WebQueue<DBRequest> db_queue_ = {"db1"};
   std::vector<std::future<void>> thread_pool_;
   std::atomic<uint64_t> cmd_count_ = 0;
 };

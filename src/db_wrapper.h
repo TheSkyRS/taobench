@@ -105,14 +105,11 @@ class DBWrapper : public DB {
   MemcacheResponse SendCommand(const std::vector<DB_Operation> &operations,
                                std::vector<TimestampValue> &read_buffer,
                                bool txn_op, bool read_only, uint64_t& elapsed) {
-    LockFreeQueue<MemcacheResponse> result_queue;
-    MemcacheRequest req{operations, ptr2uint(&result_queue), txn_op, read_only};
-    MemcacheResponse resp;
-
+    MemcacheRequest req{operations, txn_op, read_only};
     timer_.Start();
     memcache_->SendCommand(req, tid_);
-    while (!result_queue.dequeue(resp));
-    read_buffer.insert(read_buffer.end(), resp.read_buffer.begin(), resp.read_buffer.end());
+    MemcacheResponse resp;
+    // read_buffer.insert(read_buffer.end(), resp.read_buffer.begin(), resp.read_buffer.end());
     elapsed = timer_.End();
     return resp;
   }

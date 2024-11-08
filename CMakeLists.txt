@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 
 # set(CMAKE_BUILD_TYPE Debug)
+# add_definitions(-DSIMPLE_QUEUE)
 
 option(WITH_MEMCACHE ON)
 option(WITH_CRDB OFF)

@@ -52,8 +52,8 @@ class Measurements {
         {7,"WriteTxn"},
         {8,"Max"},
   };
-  std::atomic<int64_t> read_hit_;
-  std::atomic<int64_t> read_tot_;
+  std::atomic<int64_t> read_hit_{0};
+  std::atomic<int64_t> read_tot_{1};
 };
 
 } // benchmark

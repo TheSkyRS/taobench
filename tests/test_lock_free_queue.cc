@@ -13,7 +13,7 @@ public:
 
 int main()
 {
-    LockFreeQueue<Integer> queue;
+    WebQueue<Integer> queue;
     std::thread t1([&queue]()
     {
         for (int i = 0; i < 10; ++i)
