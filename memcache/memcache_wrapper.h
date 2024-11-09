@@ -20,19 +20,12 @@
 
 #define RTHREADS 2
 
-// #define DB_REQUEST(operations, read_buffer, txn_op, read_only, ret) \
-//     do { \
-//         std::atomic<bool> flag{false}; \
-//         DBRequest db_req{operations, ptr2uint(&read_buffer), txn_op, read_only, ptr2uint(&ret), ptr2uint(&flag)}; \
-//         db_queue->enqueue(db_req); \
-//         while (!flag); \
-//     } while (0)
-
-#define DB_REQUEST(operations, read_buffer, txn_op, read_only, ret) \
-    do { \
-        for (int i = 0; i < operations.size(); i++) \
-          read_buffer.push_back({-1, ""}); \
-    } while (0)
+#define ENQUEUE_RESPONSE(resp) \
+    if (responses.find(req.resp_port) == responses.end()) { \
+        responses[req.resp_port] = new WebQueuePush<MemcacheResponse>(new zmq::context_t(1)); \
+        responses[req.resp_port]->connect(req.resp_port); \
+    } \
+    responses[req.resp_port]->enqueue(resp);
 
 namespace benchmark {
 
@@ -67,12 +60,10 @@ struct MemcacheRequest {
 
 struct DBRequest {
   std::vector<DB::DB_Operation> operations;
-  uintptr_t read_buffer; // std::vector<DB::TimestampValue>*
-  bool txn_op;
+  MemcacheResponse resp;
   bool read_only;
-  uintptr_t s; // Status*
-  uintptr_t finished; // std::atomic<bool>*
-  MSGPACK_DEFINE(operations, read_buffer, txn_op, read_only, s, finished);
+  bool txn_op;
+  MSGPACK_DEFINE(operations, resp, read_only, txn_op);
 };
 
 const std::vector<std::string> zmq_read_ports = {"6100", "6101"};
@@ -108,187 +99,139 @@ class MemcacheWrapper {
 
  private:
   static void PollRead(std::string port) {
-    std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
-
     WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port);
-    MemcachedClient memcache_get;
-    MemcachedClient memcache_put;
-
+    std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
     WebQueuePush<DBRequest> db_queue(new zmq::context_t(1));
     db_queue.connect(zmq_db_port);
 
     MemcacheRequest req;
-    MemcacheResponse resp;
+    MemcachedClient memcache_get;
     while (true) {
       if (!requests.dequeue(req)) {
         continue;
       }
-      if (req.txn_op) {
-        resp = ReadTxn(req, &memcache_get, &memcache_put, &db_queue);
-      } else {
-        resp = Read(req, &memcache_get, &memcache_put, &db_queue);
-      }
-      resp.timestamp = req.timestamp;
 
-      if (responses.find(req.resp_port) == responses.end()) {
-        responses[req.resp_port] = new WebQueuePush<MemcacheResponse>
-                                  (new zmq::context_t(1));
-        responses[req.resp_port]->connect(req.resp_port);
+      MemcacheResponse resp;
+      resp.timestamp = req.timestamp;
+      const auto& operations = req.operations;
+      auto& read_buffer = resp.read_buffer;
+      
+      if (req.txn_op) {
+        resp.operation = Operation::READTRANSACTION;
+        resp.read_count += operations.size();
+
+        std::vector<DB::DB_Operation> miss_ops;
+        for (size_t i = 0; i < operations.size(); i++) {
+          if (memcache_get.get(operations[i], read_buffer)) {
+            resp.hit_count++;
+          } else {
+            read_buffer.emplace_back(-1, "");
+            miss_ops.push_back(operations[i]);
+          }
+        }
+
+        if (miss_ops.empty()) {
+          resp.s = Status::kOK; 
+          ENQUEUE_RESPONSE(resp);
+        } else {
+          db_queue->enqueue({miss_ops, resp, true, true});
+        }
+      } else {
+        resp.operation = operations[0].operation;
+        resp.read_count += 1;
+
+        if (memcache_get->get(operations[0], read_buffer)) {
+          resp.s = Status::kOK;
+          resp.hit_count += 1;
+          ENQUEUE_RESPONSE(resp);
+        } else {
+          db_queue->enqueue({miss_ops, resp, true, false});
+        }
       }
-      responses[req.resp_port]->enqueue(resp);
     }
   }
 
   static void PollWrite(std::string port) {
-    std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
-
     WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port);
-    MemcachedClient memcache_put;
-
+    std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
     WebQueuePush<DBRequest> db_queue(new zmq::context_t(1));
     db_queue.connect(zmq_db_port);
 
     MemcacheRequest req;
-    MemcacheResponse resp;
     while (true) {
       if (!requests.dequeue(req)) {
         continue;
       }
-      if (req.txn_op) {
-        resp = WriteTxn(req, &memcache_put, &db_queue);
-      } else {
-        resp = Write(req, &memcache_put, &db_queue);
-      }
 
+      MemcacheResponse resp;
       resp.timestamp = req.timestamp;
-      if (responses.find(req.resp_port) == responses.end()) {
-        responses[req.resp_port] = new WebQueuePush<MemcacheResponse>
-                                  (new zmq::context_t(1));
-        responses[req.resp_port]->connect(req.resp_port);
+      const auto& operations = req.operations;
+      auto& read_buffer = resp.read_buffer;
+
+      if (req.txn_op) {
+        resp.operation = Operation::WRITETRANSACTION;
+        db_queue->enqueue({operations, resp, false, true});
+      } else {
+        resp.operation = operations[0].operation;
+        db_queue->enqueue({operations, resp, false, false});
       }
-      responses[req.resp_port]->enqueue(resp);
     }
   }
 
   // Has segmentation fault, and db + loop wait is slow (when 0 hit)
   static void DBThread(DB *db) {
     WebQueuePull<DBRequest> db_queue(new zmq::context_t(1), zmq_db_port);
-    DBRequest req;
+    MemcacheRequest req;
+    MemcachedClient memcache_put;
     while (true) {
       if (!db_queue.dequeue(req)) {
         continue;
       }
-      auto* s = uint2ptr<Status>(req.s);
-      auto* read_buffer = uint2ptr<std::vector<DB::TimestampValue>>(req.read_buffer);
-      auto* finished = uint2ptr<bool>(req.finished);
-      for (int i = 0; i < req.operations.size(); i++)
-        read_buffer->push_back({-1, ""});
-      // if (req.txn_op) {
-      //   *s = db->ExecuteTransaction(req.operations, *read_buffer, req.read_only);
-      // } else {
-      //   *s = db->Execute(req.operations[0], *read_buffer);
-      // }
-      *finished = true;
-    }
-  }
 
-  static MemcacheResponse Read(MemcacheRequest &req,
-                               MemcachedClient *memcache_get,
-                               MemcachedClient *memcache_put,
-                               WebQueuePush<DBRequest> *db_queue) {
-    MemcacheResponse resp;
-    const auto& operations = req.operations;
-    auto& read_buffer = resp.read_buffer;
-    resp.operation = operations[0].operation;
+      MemcacheResponse& resp = req.resp;
+      const auto& operations = req.operations;
+      auto& read_buffer = resp.read_buffer;
 
-    resp.read_count += 1;
-    if (memcache_get->get(operations[0], read_buffer)) {
-      resp.s = Status::kOK;
-      resp.hit_count += 1;
-    } else {
-      DB_REQUEST(operations, read_buffer, false, true, resp.s);
-      if (resp.s == Status::kOK) {
-        memcache_put->put(operations[0], read_buffer[0]);
-      }
-    }
-    return resp;
-  }
+      if (req.read_only) {
+        if (req.txn_op) {
+          std::vector<DB::TimestampValue> rsl_db;
+          resp.s = db->ExecuteTransaction(operations, rsl_db, true);
+          if (resp.s != Status::kOK) {
+            continue;
+          }
 
-  static MemcacheResponse Write(MemcacheRequest &req,
-                                MemcachedClient *memcache_put,
-                                WebQueuePush<DBRequest> *db_queue) {
-    MemcacheResponse resp;
-    const auto& operations = req.operations;
-    auto& read_buffer = resp.read_buffer;
-    resp.operation = operations[0].operation;
-
-    DB_REQUEST(operations, read_buffer, false, false, resp.s);
-    memcache_put->invalidate(operations[0]);
-    return resp;
-  }
-
-  static MemcacheResponse ReadTxn(MemcacheRequest &req,
-                                  MemcachedClient *memcache_get,
-                                  MemcachedClient *memcache_put,
-                                  WebQueuePush<DBRequest> *db_queue) {
-    MemcacheResponse resp;
-    resp.operation = Operation::READTRANSACTION;
-    const auto& operations = req.operations;
-    auto& read_buffer = resp.read_buffer;
-    
-    std::vector<DB::DB_Operation> miss_ops;
-    std::vector<DB::TimestampValue> rsl_db;
-      
-    resp.read_count += operations.size();
-    for (size_t i = 0; i < operations.size(); i++) {
-      if (memcache_get->get(operations[i], read_buffer)) {
-        resp.hit_count++;
+          size_t db_pos = 0;
+          for (size_t i = 0; i < operations.size(); i++) {
+            if (read_buffer[i].timestamp == -1){
+              read_buffer[i] = rsl_db[db_pos];
+              memcache_put.put(operations[i], rsl_db[db_pos]);
+              db_pos++;
+            } 
+          }  
+        } else {
+          resp.s = db->Execute(operations[0], read_buffer);
+          if (resp.s == Status::kOK) {
+            memcache_put.put(operations[0], read_buffer[0]);
+          }
+        }
       } else {
-        read_buffer.emplace_back(-1, "");
-        miss_ops.push_back(operations[i]);
+        if (req.txn_op) {
+          resp.s = db->ExecuteTransaction(operations, rsl_db, false);
+          if (resp.s == Status::kOK) {
+            for (const DB::DB_Operation& op : operations) {
+              memcache_put->invalidate(op);
+            }
+          }
+        } else {
+          resp.s = db->Execute(operations[0], read_buffer);
+          if (resp.s == Status::kOK) {
+            memcache_put.invalidate(operations[0]);
+          }
+        }
       }
+      ENQUEUE_RESPONSE(resp);
     }
-    assert(read_buffer.size() == operations.size());
-
-    if (miss_ops.empty()) {
-      resp.s = Status::kOK; 
-      return resp;
-    }
-
-    DB_REQUEST(operations, rsl_db, true, true, resp.s);
-    if (resp.s == Status::kOK) {
-      size_t db_pos = 0;
-      for (size_t i = 0; i < operations.size(); i++) {
-        if (read_buffer[i].timestamp == -1){
-          read_buffer[i] = rsl_db[db_pos];
-          memcache_put->put(operations[i], rsl_db[db_pos]);
-          db_pos++;
-        } 
-      }
-    } else {
-      read_buffer.clear();
-    }
-    return resp;
   }
-
-  static MemcacheResponse WriteTxn(MemcacheRequest &req,
-                                   MemcachedClient *memcache_put,
-                                   WebQueuePush<DBRequest> *db_queue) {
-    MemcacheResponse resp;
-    resp.operation = Operation::WRITETRANSACTION;
-    const auto& operations = req.operations;
-    auto& read_buffer = resp.read_buffer;
-    
-    DB_REQUEST(operations, read_buffer, true, false, resp.s);
-    for (const DB::DB_Operation& op : operations) {
-      memcache_put->invalidate(op);
-    }
-    return resp;
-  }
-  
-  DB *db_;
-  std::vector<std::future<void>> thread_pool_;
-};
 
 } // benchmark
 
