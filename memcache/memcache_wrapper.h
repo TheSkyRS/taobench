@@ -29,16 +29,6 @@
 
 namespace benchmark {
 
-template <typename T>
-uintptr_t ptr2uint(T* const& v) {
-  return reinterpret_cast<uintptr_t>(v);
-}
-
-template <typename T>
-T* uint2ptr(uintptr_t const& v) {
-  return reinterpret_cast<T*>(v);
-}
-
 struct MemcacheResponse {
   uint64_t timestamp = 0;
   std::vector<DB::TimestampValue> read_buffer;
@@ -53,17 +43,18 @@ struct MemcacheRequest {
   uint64_t timestamp;
   std::vector<DB::DB_Operation> operations;
   std::string resp_port;
-  bool txn_op;
   bool read_only;
-  MSGPACK_DEFINE(timestamp, operations, resp_port, txn_op, read_only);
+  bool txn_op;
+  MSGPACK_DEFINE(timestamp, operations, resp_port, read_only, txn_op);
 };
 
 struct DBRequest {
-  std::vector<DB::DB_Operation> operations;
   MemcacheResponse resp;
+  std::vector<DB::DB_Operation> operations;
+  std::string resp_port;
   bool read_only;
   bool txn_op;
-  MSGPACK_DEFINE(operations, resp, read_only, txn_op);
+  MSGPACK_DEFINE(resp, operations, resp_port, read_only, txn_op);
 };
 
 const std::vector<std::string> zmq_read_ports = {"6100", "6101"};
@@ -98,6 +89,11 @@ class MemcacheWrapper {
   void Reset() {}
 
  private:
+  static uint64_t getTimestamp() {
+    auto now = std::chrono::system_clock::now();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+  }
+
   static void PollRead(std::string port) {
     WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port);
     std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
@@ -134,18 +130,18 @@ class MemcacheWrapper {
           resp.s = Status::kOK; 
           ENQUEUE_RESPONSE(resp);
         } else {
-          db_queue->enqueue({miss_ops, resp, true, true});
+          db_queue.enqueue({resp, miss_ops, req.resp_port, true, true});
         }
       } else {
         resp.operation = operations[0].operation;
         resp.read_count += 1;
 
-        if (memcache_get->get(operations[0], read_buffer)) {
+        if (memcache_get.get(operations[0], read_buffer)) {
           resp.s = Status::kOK;
           resp.hit_count += 1;
           ENQUEUE_RESPONSE(resp);
         } else {
-          db_queue->enqueue({miss_ops, resp, true, false});
+          db_queue.enqueue({resp, operations, req.resp_port, true, false});
         }
       }
     }
@@ -170,18 +166,20 @@ class MemcacheWrapper {
 
       if (req.txn_op) {
         resp.operation = Operation::WRITETRANSACTION;
-        db_queue->enqueue({operations, resp, false, true});
+        db_queue.enqueue({resp, operations, req.resp_port, false, true});
       } else {
         resp.operation = operations[0].operation;
-        db_queue->enqueue({operations, resp, false, false});
+        db_queue.enqueue({resp, operations, req.resp_port, false, false});
       }
     }
   }
 
   // Has segmentation fault, and db + loop wait is slow (when 0 hit)
   static void DBThread(DB *db) {
+    std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
     WebQueuePull<DBRequest> db_queue(new zmq::context_t(1), zmq_db_port);
-    MemcacheRequest req;
+    
+    DBRequest req;
     MemcachedClient memcache_put;
     while (true) {
       if (!db_queue.dequeue(req)) {
@@ -196,18 +194,17 @@ class MemcacheWrapper {
         if (req.txn_op) {
           std::vector<DB::TimestampValue> rsl_db;
           resp.s = db->ExecuteTransaction(operations, rsl_db, true);
-          if (resp.s != Status::kOK) {
-            continue;
-          }
-
-          size_t db_pos = 0;
-          for (size_t i = 0; i < operations.size(); i++) {
-            if (read_buffer[i].timestamp == -1){
+          if (resp.s == Status::kOK) {
+            size_t db_pos = 0;
+            for (size_t i = 0; i < operations.size(); i++) {
+              if (read_buffer[i].timestamp != -1){
+                continue;
+              }
               read_buffer[i] = rsl_db[db_pos];
               memcache_put.put(operations[i], rsl_db[db_pos]);
               db_pos++;
             } 
-          }  
+          }
         } else {
           resp.s = db->Execute(operations[0], read_buffer);
           if (resp.s == Status::kOK) {
@@ -216,10 +213,10 @@ class MemcacheWrapper {
         }
       } else {
         if (req.txn_op) {
-          resp.s = db->ExecuteTransaction(operations, rsl_db, false);
+          resp.s = db->ExecuteTransaction(operations, read_buffer, false);
           if (resp.s == Status::kOK) {
             for (const DB::DB_Operation& op : operations) {
-              memcache_put->invalidate(op);
+              memcache_put.invalidate(op);
             }
           }
         } else {
@@ -229,9 +226,13 @@ class MemcacheWrapper {
           }
         }
       }
-      ENQUEUE_RESPONSE(resp);
+      ENQUEUE_RESPONSE(resp);  
     }
   }
+
+  DB *db_;
+  std::vector<std::future<void>> thread_pool_;
+};
 
 } // benchmark
 

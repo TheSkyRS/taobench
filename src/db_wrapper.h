@@ -101,7 +101,7 @@ class DBWrapper : public DB {
  private:
   static uint64_t getTimestamp() {
     auto now = std::chrono::system_clock::now();
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
   }
 
   static void PullResp(DBWrapper* clz) {
@@ -119,7 +119,7 @@ class DBWrapper : public DB {
   }
 
   void SendCommand(const std::vector<DB_Operation> &operations, bool txn_op, bool read_only) {
-    MemcacheRequest req{getTimestamp(), operations, ans_port, txn_op, read_only};
+    MemcacheRequest req{getTimestamp(), operations, ans_port, read_only, txn_op};
     if (read_only) {
       memcache_read->enqueue(req);
     } else {
