@@ -58,7 +58,7 @@ struct DBRequest {
 };
 
 const std::vector<std::string> zmq_read_ports = {"6100", "6101"};
-const std::vector<std::string> zmq_write_ports = {"6200", "6201"};
+const std::vector<std::string> zmq_write_ports = {"6200"};
 const std::string zmq_db_port = "6400";
 
 class MemcacheWrapper {
@@ -174,7 +174,6 @@ class MemcacheWrapper {
     }
   }
 
-  // Has segmentation fault, and db + loop wait is slow (when 0 hit)
   static void DBThread(DB *db) {
     std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
     WebQueuePull<DBRequest> db_queue(new zmq::context_t(1), zmq_db_port);
