@@ -32,15 +32,19 @@ class DBWrapper : public DB {
     }
   }
   ~DBWrapper() {
-    delete db_;
+    if(db_) delete db_;
     if(memcache_read) delete memcache_read;
     if(memcache_write) delete memcache_write;
   }
   void Init() { // deprecated
-    db_->Init();
+    if(db_ != nullptr) {
+      db_->Init();
+    } 
   }
   void Cleanup() { // deprecated
-    db_->Cleanup();
+    if(db_ != nullptr) {
+      db_->Cleanup();
+    } 
   }
   Status Read(DataTable table, const std::vector<Field> &key,
               std::vector<TimestampValue> &buffer) {
@@ -131,7 +135,6 @@ class DBWrapper : public DB {
   int tid_;
   std::string ans_port;
   Measurements *measurements_;
-  utils::Timer<uint64_t, std::nano> timer_;
 
   WebQueuePush<MemcacheRequest>* memcache_read = nullptr;
   WebQueuePush<MemcacheRequest>* memcache_write = nullptr;

@@ -16,12 +16,12 @@ bool DBFactory::RegisterDB(std::string db_name, DBCreator db_creator) {
 
 DB *DBFactory::CreateDB(utils::Properties *props, Measurements *measurements, 
   bool memcache, int tid) {
+  if (memcache) {
+    GetMemcache(props);
+    return new DBWrapper(nullptr, measurements, tid);
+  }
   DB *db = CreateRawDB(props);
   if (db != nullptr) {
-    if (memcache) {
-      GetMemcache(props);
-      return new DBWrapper(db, measurements, tid);
-    }
     return new DBWrapper(db, measurements, -1);
   }
   return nullptr;
@@ -30,9 +30,11 @@ DB *DBFactory::CreateDB(utils::Properties *props, Measurements *measurements,
 MemcacheWrapper *DBFactory::memcache_ = nullptr;
 MemcacheWrapper *DBFactory::GetMemcache(utils::Properties *props) {
   if (memcache_ == nullptr) {
-    DB *db = CreateRawDB(props);
-    assert(db != nullptr);
-    memcache_ = new MemcacheWrapper(db);
+    DB *dbr = CreateRawDB(props);
+    DB *dbw = CreateRawDB(props);
+    assert(dbr != nullptr);
+    assert(dbw != nullptr);
+    memcache_ = new MemcacheWrapper(dbr, dbw);
     memcache_->Start();
   }
   return memcache_;
