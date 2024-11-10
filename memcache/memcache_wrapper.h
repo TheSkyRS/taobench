@@ -57,11 +57,11 @@ struct DBRequest {
   MSGPACK_DEFINE(resp, operations, resp_port, read_only, txn_op);
 };
 
-const std::vector<std::string> zmq_read_ports = {"6100", "6101", "6102", "6103"};
-const std::vector<std::string> zmq_read_txn_ports = {"6200", "6201"};
-const std::vector<std::string> zmq_write_ports = {"6300", "6301"};
-const std::vector<std::string> zmq_db_read_ports = {"6400", "6401"}; // this may not exceed read threads
-const std::vector<std::string> zmq_db_write_ports = {"6500"}; // this may not exceed write threads
+const std::vector<std::string> zmq_read_ports = {"6100", "6101", "6102", "6103", "6104", "6105", "6106", "6107"};
+const std::vector<std::string> zmq_read_txn_ports = {"6108", "6109", "6110", "6111"};
+const std::vector<std::string> zmq_write_ports = {"6300"};
+const std::vector<std::string> zmq_db_read_ports = {"6400", "6401", "6402", "6403", "6404", "6405"};
+const std::vector<std::string> zmq_db_write_ports = {"6500"};
 
 class MemcacheWrapper {
  public:
@@ -80,13 +80,13 @@ class MemcacheWrapper {
         std::async(std::launch::async, PollRead, zmq_read_ports[i], db_port)
       );
     }
-    // for (size_t i = 0; i < zmq_read_txn_ports.size(); i++) {
-    //   int j = i + zmq_read_ports.size();
-    //   auto& = zmq_db_read_ports[j % zmq_db_read_ports.size()];
-    //   thread_pool_.push_back(
-    //     std::async(std::launch::async, PollReadTxn, zmq_read_txn_ports[i], db_port)
-    //   );
-    // }
+    for (size_t i = 0; i < zmq_read_txn_ports.size(); i++) {
+      int j = i + zmq_read_ports.size();
+      auto& db_port = zmq_db_read_ports[j % zmq_db_read_ports.size()];
+      thread_pool_.push_back(
+        std::async(std::launch::async, PollReadTxn, zmq_read_txn_ports[i], db_port)
+      );
+    }
     for (size_t i = 0; i < zmq_write_ports.size(); i++) {
       auto& db_port = zmq_db_write_ports[i % zmq_db_write_ports.size()];
       thread_pool_.push_back(
@@ -131,37 +131,55 @@ class MemcacheWrapper {
       const auto& operations = req.operations;
       auto& read_buffer = resp.read_buffer;
       
-      if (req.txn_op) {
-        resp.operation = Operation::READTRANSACTION;
-        resp.read_count += operations.size();
+      resp.operation = operations[0].operation;
+      resp.read_count += 1;
 
-        std::vector<DB::DB_Operation> miss_ops;
-        for (size_t i = 0; i < operations.size(); i++) {
-          if (memcache_get.get(operations[i], read_buffer)) {
-            resp.hit_count++;
-          } else {
-            read_buffer.emplace_back(-1, "");
-            miss_ops.push_back(operations[i]);
-          }
-        }
-
-        if (miss_ops.empty()) {
-          resp.s = Status::kOK; 
-          ENQUEUE_RESPONSE(resp);
-        } else {
-          db_queue.enqueue({resp, miss_ops, req.resp_port, true, true});
-        }
+      if (memcache_get.get(operations[0], read_buffer)) {
+        resp.s = Status::kOK;
+        resp.hit_count += 1;
+        ENQUEUE_RESPONSE(resp);
       } else {
-        resp.operation = operations[0].operation;
-        resp.read_count += 1;
+        db_queue.enqueue({resp, operations, req.resp_port, true, false});
+      }
+    }
+  }
 
-        if (memcache_get.get(operations[0], read_buffer)) {
-          resp.s = Status::kOK;
-          resp.hit_count += 1;
-          ENQUEUE_RESPONSE(resp);
+  static void PollReadTxn(std::string port, std::string db_port) {
+    WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port);
+    std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
+    WebQueuePush<DBRequest> db_queue(new zmq::context_t(1));
+    db_queue.connect(db_port);
+
+    MemcacheRequest req;
+    MemcachedClient memcache_get;
+    while (true) {
+      if (!requests.dequeue(req)) {
+        continue;
+      }
+
+      MemcacheResponse resp;
+      resp.timestamp = req.timestamp;
+      const auto& operations = req.operations;
+      auto& read_buffer = resp.read_buffer;
+      
+      resp.operation = Operation::READTRANSACTION;
+      resp.read_count += operations.size();
+
+      std::vector<DB::DB_Operation> miss_ops;
+      for (size_t i = 0; i < operations.size(); i++) {
+        if (memcache_get.get(operations[i], read_buffer)) {
+          resp.hit_count++;
         } else {
-          db_queue.enqueue({resp, operations, req.resp_port, true, false});
+          read_buffer.emplace_back(-1, "");
+          miss_ops.push_back(operations[i]);
         }
+      }
+
+      if (miss_ops.empty()) {
+        resp.s = Status::kOK; 
+        ENQUEUE_RESPONSE(resp);
+      } else {
+        db_queue.enqueue({resp, miss_ops, req.resp_port, true, true});
       }
     }
   }
