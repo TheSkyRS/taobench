@@ -57,11 +57,10 @@ struct DBRequest {
   MSGPACK_DEFINE(resp, operations, resp_port, read_only, txn_op);
 };
 
-const std::vector<std::string> zmq_read_ports = {"6100", "6101", "6102", "6103", "6104", "6105", "6106", "6107"};
-const std::vector<std::string> zmq_read_txn_ports = {"6108", "6109", "6110", "6111"};
+const std::vector<std::string> zmq_read_ports = {"6100", "6101", "6102", "6103"};
+const std::vector<std::string> zmq_read_txn_ports = {"6108", "6109"};
 const std::vector<std::string> zmq_write_ports = {"6300"};
-const std::vector<std::string> zmq_db_read_ports = {"6400", "6401", "6402", "6403", "6404", "6405"};
-const std::vector<std::string> zmq_db_write_ports = {"6500"};
+const std::vector<std::string> zmq_db_ports = {"6400", "6401"};
 
 class MemcacheWrapper {
  public:
@@ -75,32 +74,26 @@ class MemcacheWrapper {
 
   void Start() {
     for (size_t i = 0; i < zmq_read_ports.size(); i++) {
-      auto& db_port = zmq_db_read_ports[i % zmq_db_read_ports.size()];
+      auto& db_port = zmq_db_ports[i % zmq_db_ports.size()];
       thread_pool_.push_back(
         std::async(std::launch::async, PollRead, zmq_read_ports[i], db_port)
       );
     }
     for (size_t i = 0; i < zmq_read_txn_ports.size(); i++) {
       int j = i + zmq_read_ports.size();
-      auto& db_port = zmq_db_read_ports[j % zmq_db_read_ports.size()];
+      auto& db_port = zmq_db_ports[j % zmq_db_ports.size()];
       thread_pool_.push_back(
         std::async(std::launch::async, PollReadTxn, zmq_read_txn_ports[i], db_port)
       );
     }
     for (size_t i = 0; i < zmq_write_ports.size(); i++) {
-      auto& db_port = zmq_db_write_ports[i % zmq_db_write_ports.size()];
       thread_pool_.push_back(
-        std::async(std::launch::async, PollWrite, zmq_write_ports[i], db_port)
+        std::async(std::launch::async, PollWrite, zmq_write_ports[i], dbw_[i])
       );
     }
-    for (size_t i = 0; i < zmq_db_read_ports.size(); i++) {
+    for (size_t i = 0; i < zmq_db_ports.size(); i++) {
       thread_pool_.push_back(
-        std::async(std::launch::async, DBRThread, dbr_[i], zmq_db_read_ports[i])
-      );
-    }
-    for (size_t i = 0; i < zmq_db_write_ports.size(); i++) {
-      thread_pool_.push_back(
-        std::async(std::launch::async, DBWThread, dbw_[i], zmq_db_write_ports[i])
+        std::async(std::launch::async, DBThread, dbr_[i], zmq_db_ports[i])
       );
     }
   }
@@ -184,13 +177,12 @@ class MemcacheWrapper {
     }
   }
 
-  static void PollWrite(std::string port, std::string db_port) {
+  static void PollWrite(std::string port, DB *db) {
     WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port);
     std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
-    WebQueuePush<DBRequest> db_queue(new zmq::context_t(1));
-    db_queue.connect(db_port);
 
     MemcacheRequest req;
+    MemcachedClient memcache_put;
     while (true) {
       if (!requests.dequeue(req)) {
         continue;
@@ -203,15 +195,24 @@ class MemcacheWrapper {
 
       if (req.txn_op) {
         resp.operation = Operation::WRITETRANSACTION;
-        db_queue.enqueue({resp, operations, req.resp_port, false, true});
+        resp.s = db->ExecuteTransaction(operations, read_buffer, false);
+        if (resp.s == Status::kOK) {
+          for (const DB::DB_Operation& op : operations) {
+            memcache_put.invalidate(op);
+          }
+        }
       } else {
         resp.operation = operations[0].operation;
-        db_queue.enqueue({resp, operations, req.resp_port, false, false});
+        resp.s = db->Execute(operations[0], read_buffer);
+        if (resp.s == Status::kOK) {
+          memcache_put.invalidate(operations[0]);
+        }
       }
+      ENQUEUE_RESPONSE(resp); 
     }
   }
 
-  static void DBRThread(DB *db, std::string db_port) {
+  static void DBThread(DB *db, std::string db_port) {
     std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
     WebQueuePull<DBRequest> db_queue(new zmq::context_t(1), db_port);
     
@@ -246,38 +247,6 @@ class MemcacheWrapper {
         resp.s = db->Execute(operations[0], read_buffer);
         if (resp.s == Status::kOK) {
           memcache_put.put(operations[0], read_buffer[0]);
-        }
-      }
-      ENQUEUE_RESPONSE(resp);  
-    }
-  }
-
-  static void DBWThread(DB *db, std::string db_port) {
-    std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
-    WebQueuePull<DBRequest> db_queue(new zmq::context_t(1), db_port);
-    
-    DBRequest req;
-    MemcachedClient memcache_put;
-    while (true) {
-      if (!db_queue.dequeue(req)) {
-        continue;
-      }
-
-      MemcacheResponse& resp = req.resp;
-      const auto& operations = req.operations;
-      auto& read_buffer = resp.read_buffer;
-
-      if (req.txn_op) {
-        resp.s = db->ExecuteTransaction(operations, read_buffer, false);
-        if (resp.s == Status::kOK) {
-          for (const DB::DB_Operation& op : operations) {
-            memcache_put.invalidate(op);
-          }
-        }
-      } else {
-        resp.s = db->Execute(operations[0], read_buffer);
-        if (resp.s == Status::kOK) {
-          memcache_put.invalidate(operations[0]);
         }
       }
       ENQUEUE_RESPONSE(resp);  

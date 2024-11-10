@@ -31,10 +31,10 @@ MemcacheWrapper *DBFactory::memcache_ = nullptr;
 MemcacheWrapper *DBFactory::GetMemcache(utils::Properties *props) {
   if (memcache_ == nullptr) {
     std::vector<DB*> dbr, dbw;
-    for (int i = 0; i < zmq_db_read_ports.size(); i++) {
+    for (int i = 0; i < zmq_db_ports.size(); i++) {
       dbr.push_back(CreateRawDB(props));
     }
-    for (int i = 0; i < zmq_db_write_ports.size(); i++) {
+    for (int i = 0; i < zmq_write_ports.size(); i++) {
       dbw.push_back(CreateRawDB(props));
     }
     memcache_ = new MemcacheWrapper(dbr, dbw);
