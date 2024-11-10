@@ -115,7 +115,7 @@ class MemcacheWrapper {
     MemcacheRequest req;
     MemcachedClient memcache_get;
     while (true) {
-      if (!requests.dequeue(req)) {
+      if (write_txn_flag.load() || !requests.dequeue(req)) {
         continue;
       }
 
@@ -161,9 +161,7 @@ class MemcacheWrapper {
 
       std::vector<DB::DB_Operation> miss_ops;
       for (size_t i = 0; i < operations.size(); i++) {
-        if (memcache_get.get(operations[i], read_buffer)) {
-          resp.hit_count++;
-        } else {
+        if (!memcache_get.get(operations[i], read_buffer)) {
           read_buffer.emplace_back(-1, "");
           miss_ops.push_back(operations[i]);
         }
@@ -173,6 +171,7 @@ class MemcacheWrapper {
         resp.s = Status::kOK; 
         ENQUEUE_RESPONSE(resp);
       } else {
+        resp.hit_count += miss_ops.size();
         auto* db_req = new DBRequest{resp, miss_ops, req.resp_port, true, true};
         db_queue.enqueue(reinterpret_cast<uintptr_t>(db_req));
       }
@@ -186,8 +185,6 @@ class MemcacheWrapper {
     MemcacheRequest req;
     MemcachedClient memcache_put;
 
-    bool FALSE = false;
-    bool TRUE = true;
     while (true) {
       if (!requests.dequeue(req)) {
         write_flag.store(false);
@@ -205,9 +202,11 @@ class MemcacheWrapper {
         resp.operation = Operation::WRITETRANSACTION;
         resp.s = db->ExecuteTransaction(operations, read_buffer, false);
         if (resp.s == Status::kOK) {
+          write_txn_flag.store(true);
           for (const DB::DB_Operation& op : operations) {
             memcache_put.invalidate(op);
           }
+          write_txn_flag.store(false);
         }
       } else {
         resp.operation = operations[0].operation;
@@ -267,6 +266,7 @@ class MemcacheWrapper {
   std::vector<std::future<void>> thread_pool_;
   
   std::atomic<bool> write_flag{false};
+  std::atomic<bool> write_txn_flag{false};
 };
 
 } // benchmark
