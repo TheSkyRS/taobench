@@ -109,7 +109,7 @@ class MemcacheWrapper {
   static void PollRead(std::string port, std::string db_port) {
     WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port);
     std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
-    WebQueuePush<DBRequest> db_queue(new zmq::context_t(1));
+    WebQueuePush<uintptr_t> db_queue(new zmq::context_t(1));
     db_queue.connect(db_port);
 
     MemcacheRequest req;
@@ -132,7 +132,8 @@ class MemcacheWrapper {
         resp.hit_count += 1;
         ENQUEUE_RESPONSE(resp);
       } else {
-        db_queue.enqueue({resp, operations, req.resp_port, true, false});
+        auto* db_req = new DBRequest{resp, operations, req.resp_port, true, false};
+        db_queue.enqueue(reinterpret_cast<uintptr_t>(db_req));
       }
     }
   }
@@ -140,7 +141,7 @@ class MemcacheWrapper {
   static void PollReadTxn(std::string port, std::string db_port) {
     WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port);
     std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
-    WebQueuePush<DBRequest> db_queue(new zmq::context_t(1));
+    WebQueuePush<uintptr_t> db_queue(new zmq::context_t(1));
     db_queue.connect(db_port);
 
     MemcacheRequest req;
@@ -172,7 +173,8 @@ class MemcacheWrapper {
         resp.s = Status::kOK; 
         ENQUEUE_RESPONSE(resp);
       } else {
-        db_queue.enqueue({resp, miss_ops, req.resp_port, true, true});
+        auto* db_req = new DBRequest{resp, miss_ops, req.resp_port, true, true};
+        db_queue.enqueue(reinterpret_cast<uintptr_t>(db_req));
       }
     }
   }
@@ -214,15 +216,16 @@ class MemcacheWrapper {
 
   static void DBThread(DB *db, std::string db_port) {
     std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
-    WebQueuePull<DBRequest> db_queue(new zmq::context_t(1), db_port);
+    WebQueuePull<uintptr_t> db_queue(new zmq::context_t(1), db_port);
     
-    DBRequest req;
+    uintptr_t req_ptr;
     MemcachedClient memcache_put;
     while (true) {
-      if (!db_queue.dequeue(req)) {
+      if (!db_queue.dequeue(req_ptr)) {
         continue;
       }
 
+      DBRequest& req = *reinterpret_cast<DBRequest*>(req_ptr);
       MemcacheResponse& resp = req.resp;
       const auto& operations = req.operations;
       auto& read_buffer = resp.read_buffer;
@@ -250,6 +253,7 @@ class MemcacheWrapper {
         }
       }
       ENQUEUE_RESPONSE(resp);  
+      delete reinterpret_cast<DBRequest*>(req_ptr);
     }
   }
 
