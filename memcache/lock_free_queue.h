@@ -41,11 +41,13 @@ template <typename T>
 class WebQueuePull
 {
 public:
-    WebQueuePull(zmq::context_t* ctx, std::string port="6000", int timeout=-1): 
+    WebQueuePull(zmq::context_t* ctx, std::string port="6000", 
+        int timeout=-1, int capacity=1000): 
         ctx_(ctx), pull_socket(*ctx_, ZMQ_PULL) 
     {
         pull_socket.bind("tcp://127.0.0.1:" + port);
         pull_socket.setsockopt(ZMQ_RCVTIMEO, &timeout, sizeof(timeout));
+        pull_socket.setsockopt(ZMQ_SNDHWM, &capacity, sizeof(capacity));
         std::cout << "ZeroMQ listening on " << port << std::endl;
     }
 

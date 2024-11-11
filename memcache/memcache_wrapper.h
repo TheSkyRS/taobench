@@ -88,7 +88,7 @@ class MemcacheWrapper {
     }
     for (size_t i = 0; i < zmq_write_ports.size(); i++) {
       thread_pool_.push_back(std::async(std::launch::async,
-        &MemcacheWrapper::PollWrite, this, zmq_write_ports[i], dbw_[i]
+        &MemcacheWrapper::PollWrite, this, zmq_write_ports[i], dbw_[i], 1000
       ));
     }
     for (size_t i = 0; i < zmq_db_ports.size(); i++) {
@@ -179,20 +179,39 @@ class MemcacheWrapper {
     }
   }
 
-  void PollWrite(std::string port, DB *db) {
+  void PollWrite(std::string port, DB *db, int interval) {
     WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port, 0);
     std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
 
     MemcacheRequest req;
     MemcachedClient memcache_put;
 
+    uint64_t last_time = getTimestamp(), cur_time = 0;
+    std::vector<DB::DB_Operation> wops, wops_txn;
     while (true) {
-      if (!requests.dequeue(req)) {
+      cur_time = getTimestamp();
+      if (cur_time - last_time > interval) {
+        write_flag.store(true);
+        for (const auto& op: wops) {
+          memcache_put.invalidate(op);
+        }
+        write_txn_flag.store(true);
+        for (const auto& op: wops_txn) {
+          memcache_put.invalidate(op);
+        }
+        write_txn_flag.store(false);
         write_flag.store(false);
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+        std::cout << "write back " << wops.size() << " scala and " << wops_txn.size() << " txn" << std::endl;
+        wops.clear();
+        wops_txn.clear();
+        last_time = cur_time;
+      }
+
+      if (!requests.dequeue(req)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
         continue;
       }
-      write_flag.store(true);
       
       MemcacheResponse resp;
       resp.timestamp = req.timestamp;
@@ -203,17 +222,13 @@ class MemcacheWrapper {
         resp.operation = Operation::WRITETRANSACTION;
         resp.s = db->ExecuteTransaction(operations, read_buffer, false);
         if (resp.s == Status::kOK) {
-          write_txn_flag.store(true);
-          for (const DB::DB_Operation& op : operations) {
-            memcache_put.invalidate(op);
-          }
-          write_txn_flag.store(false);
+          wops_txn.insert(wops_txn.end(), operations.begin(), operations.end());
         }
       } else {
         resp.operation = operations[0].operation;
         resp.s = db->Execute(operations[0], read_buffer);
         if (resp.s == Status::kOK) {
-          memcache_put.invalidate(operations[0]);
+          wops.push_back(operations[0]);
         }
       }
       ENQUEUE_RESPONSE(resp); 
