@@ -88,7 +88,7 @@ class MemcacheWrapper {
     }
     for (size_t i = 0; i < zmq_write_ports.size(); i++) {
       thread_pool_.push_back(std::async(std::launch::async,
-        &MemcacheWrapper::PollWrite, this, zmq_write_ports[i], dbw_[i], 1000
+        &MemcacheWrapper::PollWrite, this, zmq_write_ports[i], dbw_[i], 3000
       ));
     }
     for (size_t i = 0; i < zmq_db_ports.size(); i++) {
@@ -192,6 +192,7 @@ class MemcacheWrapper {
       cur_time = getTimestamp();
       if (cur_time - last_time > interval) {
         write_flag.store(true);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
         for (const auto& op: wops) {
           memcache_put.invalidate(op);
         }
