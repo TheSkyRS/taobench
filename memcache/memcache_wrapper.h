@@ -157,6 +157,7 @@ class MemcacheWrapper {
       auto& read_buffer = resp.read_buffer;
       
       resp.operation = Operation::READTRANSACTION;
+      read_buffer.reserve(operations.size());
       resp.read_count += operations.size();
 
       std::vector<DB::DB_Operation> miss_ops;
@@ -171,7 +172,7 @@ class MemcacheWrapper {
         resp.s = Status::kOK; 
         ENQUEUE_RESPONSE(resp);
       } else {
-        resp.hit_count += miss_ops.size();
+        resp.hit_count += operations.size() - miss_ops.size();
         auto* db_req = new DBRequest{resp, miss_ops, req.resp_port, true, true};
         db_queue.enqueue(reinterpret_cast<uintptr_t>(db_req));
       }
