@@ -114,7 +114,16 @@ void ParseCommandLine(int argc, const char *argv[], benchmark::utils::Properties
     } else if (strcmp(argv[argindex], "-spin") == 0) {
       argindex++;
       props.SetProperty("spin", "true");
-    } else if (strcmp(argv[argindex], "-run") == 0 || strcmp(argv[argindex], "-t") == 0) {
+    } else if (strcmp(argv[argindex], "-mode") == 0) {
+      argindex++;
+      if (argindex >= argc) {
+        UsageMessage(argv[0]);
+        std::cerr << "Missing argument value for -mode" << std::endl;
+        exit(0);
+      }
+      props.SetProperty("mode", argv[argindex]);
+      argindex++;
+    }else if (strcmp(argv[argindex], "-run") == 0 || strcmp(argv[argindex], "-t") == 0) {
       argindex++;
       props.SetProperty("run", "true");
     } else if (strcmp(argv[argindex], "-load") == 0) {
@@ -502,9 +511,21 @@ int main(const int argc, const char *argv[]) {
       throw std::invalid_argument("Must explicitly select run/load phase of workload!");
     }
     bool run = run_phase == "true";
+    std::string mode = props.GetProperty("mode", "mix");
 
     if (run) {
-      RunTransactions(props);
+      if (mode == "frontend") {
+        RunTransactions(props);
+      } else if (mode == "backend") {
+        benchmark::DBFactory::GetMemcache(&props);
+        std::this_thread::sleep_for(std::chrono::hours(1000000));
+      } else if (mode == "mix") {
+        benchmark::DBFactory::GetMemcache(&props);
+        RunTransactions(props);
+      } else {
+        std::cerr << "Unknown running mode!" << std::endl;
+        exit(0);
+      }
     } else if (test) {
       RunTestWorkload(props);
     } else {

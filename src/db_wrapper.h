@@ -22,7 +22,7 @@ class DBWrapper : public DB {
   DBWrapper(DB *db, Measurements *measurements, int tid=0) :
     db_(db), tid_(tid), ans_port(std::to_string(7000+tid)), measurements_(measurements) 
   {
-    if (tid >= 0) {
+    if (db == nullptr) {
       memcache_read = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
       memcache_read_txn = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
       memcache_write = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));

@@ -17,12 +17,11 @@ bool DBFactory::RegisterDB(std::string db_name, DBCreator db_creator) {
 DB *DBFactory::CreateDB(utils::Properties *props, Measurements *measurements, 
   bool memcache, int tid) {
   if (memcache) {
-    GetMemcache(props);
     return new DBWrapper(nullptr, measurements, tid);
   }
   DB *db = CreateRawDB(props);
   if (db != nullptr) {
-    return new DBWrapper(db, measurements, -1);
+    return new DBWrapper(db, measurements);
   }
   return nullptr;
 }

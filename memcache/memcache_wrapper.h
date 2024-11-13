@@ -180,7 +180,8 @@ class MemcacheWrapper {
   }
 
   void PollWrite(std::string port, DB *db, int interval) {
-    WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port, 0);
+    WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port);
+    requests.setup(0);
     std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
 
     MemcacheRequest req;
