@@ -25,12 +25,13 @@ public:
         std::uniform_int_distribution<int> dist(0, 127);
 
         zmq::context_t context{1};
-        zmq::socket_t router_socket(context, ZMQ_ROUTER);
+        zmq::socket_t router_socket(context, ZMQ_PULL);
         router_socket.bind(protocol + "://*:" + listen_port);
+        std::cout << "Router listening on " << listen_port << std::endl;
         std::vector<zmq::socket_t> dealer_sockets;
 
         for (int i = 0; i < dest_hosts.size(); i++) {
-            dealer_sockets.push_back(zmq::socket_t(context, ZMQ_DEALER));
+            dealer_sockets.push_back(zmq::socket_t(context, ZMQ_PUSH));
             dealer_sockets.back().connect(protocol + "://" + dest_hosts[i] + ":" + dest_ports[i]);
             std::cout << "Router connecting to " << dest_hosts[i] << ":" << dest_ports[i] << std::endl;
         }
