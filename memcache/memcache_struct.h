@@ -37,6 +37,7 @@ struct DBRequest {
   MSGPACK_DEFINE(resp, operations, resp_port, read_only, txn_op);
 };
 
+const std::vector<std::string> zmq_router_ports = {"6000", "6001", "6002", "6003"};
 const std::vector<std::string> zmq_read_ports = {"6100", "6101", "6102", "6103"};
 const std::vector<std::string> zmq_read_txn_ports = {"6200", "6201"};
 const std::vector<std::string> zmq_write_ports = {"6300"};

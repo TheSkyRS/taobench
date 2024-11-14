@@ -22,31 +22,22 @@ class DBWrapper : public DB {
  public:
   DBWrapper(DB *db, Measurements *measurements, std::string host="127.0.0.1", int tid=0, 
     std::string self_addr="127.0.0.1"):
-    db_(db), measurements_(measurements), ans_addr(self_addr), ans_port(std::to_string(7000+tid)), 
+    db_(db), measurements_(measurements), ans_addr_(self_addr), ans_port_(std::to_string(7000+tid)), 
     tid_(tid) {
     if (db == nullptr) {
-      memcache_read = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
-      memcache_read_txn = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
-      memcache_write = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
-      memcache_ans = new WebQueuePull<MemcacheResponse>(new zmq::context_t(1), ans_port, ans_addr);
+      memcache_router = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
+      memcache_ans = new WebQueuePull<MemcacheResponse>(new zmq::context_t(1), ans_port_, ans_addr_);
       
-      for(int i = 0; i < zmq_read_ports.size(); i ++) {
-        memcache_read->connect(zmq_read_ports[i], host);
+      for(int i = 0; i < zmq_router_ports.size(); i ++) {
+        memcache_router->connect(zmq_router_ports[i], host);
       }
-      for(int i = 0; i < zmq_read_txn_ports.size(); i ++) {
-        memcache_read_txn->connect(zmq_read_txn_ports[i], host);
-      }
-      for(int i = 0; i < zmq_write_ports.size(); i ++) {
-        memcache_write->connect(zmq_write_ports[i], host);
-      }
-      thread_pool_.push_back(std::async(std::launch::async, PullResp, this));
+      thread_pool_.push_back(std::async(std::launch::async, PullAns, this));
     }
   }
   ~DBWrapper() {
     if(db_) delete db_;
-    if(memcache_read) delete memcache_read;
-    if(memcache_read_txn) delete memcache_read_txn;
-    if(memcache_write) delete memcache_write;
+    if(memcache_router) delete memcache_router;
+    if(memcache_ans) delete memcache_ans;
   }
   void Init() { // deprecated
     if(db_ != nullptr) {
@@ -86,7 +77,9 @@ class DBWrapper : public DB {
   {
     bool read_only = operation.operation == Operation::READ;
     const std::vector<DB::DB_Operation> operations{operation};
-    SendCommand(operations, txn_op, read_only);
+    memcache_router->enqueue(
+      {getTimestamp(), operations, ans_addr_, ans_port_, read_only, txn_op},
+    tid_);
     return Status::kOK;
   }
 
@@ -94,7 +87,9 @@ class DBWrapper : public DB {
                             std::vector<TimestampValue> &read_buffer,
                             bool read_only = false) 
   {
-    SendCommand(operations, true, read_only);
+    memcache_router->enqueue(
+      {getTimestamp(), operations, ans_addr_, ans_port_, read_only, true},
+    tid_);
     return Status::kOK;
   }
 
@@ -120,7 +115,7 @@ class DBWrapper : public DB {
     return std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
   }
 
-  static void PullResp(DBWrapper* clz) {
+  static void PullAns(DBWrapper* clz) {
     MemcacheResponse resp;
     while (true) {
       if (!clz->memcache_ans->dequeue(resp)) {
@@ -134,27 +129,12 @@ class DBWrapper : public DB {
     }
   }
 
-  void SendCommand(const std::vector<DB_Operation> &operations, bool txn_op, bool read_only) {
-    MemcacheRequest req{getTimestamp(), operations, ans_addr, ans_port, read_only, txn_op};
-    if (read_only) {
-      if (txn_op) {
-        memcache_read_txn->enqueue(req, tid_);
-      } else {
-        memcache_read->enqueue(req, tid_);
-      }
-    } else {
-      memcache_write->enqueue(req, tid_);
-    }
-  }
-
   DB *db_;
   Measurements *measurements_;
-  const std::string ans_addr, ans_port;
+  const std::string ans_addr_, ans_port_;
   int tid_;
 
-  WebQueuePush<MemcacheRequest>* memcache_read = nullptr;
-  WebQueuePush<MemcacheRequest>* memcache_read_txn = nullptr;
-  WebQueuePush<MemcacheRequest>* memcache_write = nullptr;
+  WebQueuePush<MemcacheRequest>* memcache_router = nullptr;
   WebQueuePull<MemcacheResponse>* memcache_ans = nullptr;
   std::vector<std::future<void>> thread_pool_;
 };
