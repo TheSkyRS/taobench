@@ -30,12 +30,6 @@ if(WITH_MEMCACHE)
   target_link_libraries(taobench -lmemcached)
 endif()
 
-if(WITH_ROUTER)
-  include_directories(router)
-  target_sources(taobench PRIVATE
-    router/router.h)
-endif()
-
 if(WITH_CRDB)
   include_directories(crdb)
   target_sources(taobench PRIVATE
