@@ -66,8 +66,8 @@ const std::vector<std::string> zmq_db_ports = {"6400", "6401"};
 
 class MemcacheWrapper {
  public:
-  MemcacheWrapper(std::vector<DB*>& dbr, std::vector<DB*>& dbw):
-    dbr_(dbr), dbw_(dbw) {
+  MemcacheWrapper(std::vector<DB*>& dbr, std::vector<DB*>& dbw, std::string self_addr="127.0.0.1"):
+    dbr_(dbr), dbw_(dbw), self_addr_(self_addr) {
     std::cout << "creating MemcacheWrapper" << std::endl;
   }
   ~MemcacheWrapper() {
@@ -110,7 +110,7 @@ class MemcacheWrapper {
   }
 
   void PollRead(std::string port, std::string db_port) {
-    WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port);
+    WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port, self_addr_);
     std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
     WebQueuePush<uintptr_t> db_queue(new zmq::context_t(1));
     db_queue.connect(db_port);
@@ -121,6 +121,7 @@ class MemcacheWrapper {
       if (write_txn_flag.load() || !requests.dequeue(req)) {
         continue;
       }
+      // std::cout << "read from " << req.resp_addr << ":" << req.resp_port << std::endl; 
 
       MemcacheResponse resp;
       resp.timestamp = req.timestamp;
@@ -142,7 +143,7 @@ class MemcacheWrapper {
   }
 
   void PollReadTxn(std::string port, std::string db_port) {
-    WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port);
+    WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port, self_addr_);
     std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
     WebQueuePush<uintptr_t> db_queue(new zmq::context_t(1));
     db_queue.connect(db_port);
@@ -183,7 +184,7 @@ class MemcacheWrapper {
   }
 
   void PollWrite(std::string port, DB *db, int interval) {
-    WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port);
+    WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port, self_addr_);
     requests.setup(0);
     std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
 
@@ -285,6 +286,7 @@ class MemcacheWrapper {
 
   std::vector<DB*> dbr_, dbw_;
   std::vector<std::future<void>> thread_pool_;
+  const std::string self_addr_;
   
   std::atomic<bool> write_flag{false};
   std::atomic<bool> write_txn_flag{false};

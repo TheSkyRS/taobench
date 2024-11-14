@@ -38,7 +38,8 @@ MemcacheWrapper *DBFactory::GetMemcache(utils::Properties *props) {
     for (int i = 0; i < zmq_write_ports.size(); i++) {
       dbw.push_back(CreateRawDB(props));
     }
-    memcache_ = new MemcacheWrapper(dbr, dbw);
+    std::string self_addr = props->GetProperty("self_addr", "127.0.0.1");
+    memcache_ = new MemcacheWrapper(dbr, dbw, self_addr);
     memcache_->Start();
   }
   return memcache_;

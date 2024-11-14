@@ -21,7 +21,7 @@ public:
     {
         push_sockets.push_back(zmq::socket_t(*ctx_, ZMQ_PUSH));
         push_sockets.back().connect(protocol + "://" + host + ":" + port);
-        std::cout << "ZeroMQ connecting to " << port << std::endl;
+        std::cout << "ZeroMQ connecting to " << host << ":" << port << std::endl;
     }
 
     void enqueue(T value, int idx=0)
@@ -45,10 +45,10 @@ class WebQueuePull
 public:
     WebQueuePull(zmq::context_t* ctx, std::string port="6000", 
         std::string host="127.0.0.1", std::string protocol="tcp"): 
-        ctx_(ctx), pull_socket(*ctx_, ZMQ_PULL) 
+        ctx_(ctx), pull_socket(*ctx_, ZMQ_PULL), port_(port)
     {
         pull_socket.bind(protocol + "://" + host + ":" + port);
-        std::cout << "ZeroMQ listening on " << port << std::endl;
+        std::cout << "ZeroMQ listening on " << host << ":" << port << std::endl;
     }
 
     void setup(int timeout=-1, int capacity=1000) {
@@ -74,6 +74,8 @@ public:
 private:
     zmq::context_t* ctx_;
     zmq::socket_t pull_socket;
+
+    std::string port_;
 };
 
 template <typename T>

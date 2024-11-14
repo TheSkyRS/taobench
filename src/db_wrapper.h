@@ -27,7 +27,7 @@ class DBWrapper : public DB {
       memcache_read = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
       memcache_read_txn = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
       memcache_write = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
-      memcache_ans = new WebQueuePull<MemcacheResponse>(new zmq::context_t(1), ans_port);
+      memcache_ans = new WebQueuePull<MemcacheResponse>(new zmq::context_t(1), ans_port, ans_addr);
       
       memcache_read->connect(zmq_read_ports[tid % zmq_read_ports.size()], host);
       memcache_read_txn->connect(zmq_read_txn_ports[tid % zmq_read_txn_ports.size()], host);
