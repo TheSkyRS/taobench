@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 # set(CMAKE_BUILD_TYPE Debug)
 
+option(WITH_ROUTER ON)
 option(WITH_MEMCACHE ON)
 option(WITH_CRDB OFF)
 option(WITH_MYSQL OFF)
@@ -27,6 +28,12 @@ if(WITH_MEMCACHE)
     memcache/lock_free_queue.h
     memcache/memcache_wrapper.h)
   target_link_libraries(taobench -lmemcached)
+endif()
+
+if(WITH_ROUTER)
+  include_directories(router)
+  target_sources(taobench PRIVATE
+    router/router.h)
 endif()
 
 if(WITH_CRDB)

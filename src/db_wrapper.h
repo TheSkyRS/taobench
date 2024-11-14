@@ -7,6 +7,7 @@
 #include <cassert>
 #include <future>
 #include <chrono>
+#include <random>
 
 #include "db.h"
 #include "measurements.h"
@@ -21,17 +22,23 @@ class DBWrapper : public DB {
  public:
   DBWrapper(DB *db, Measurements *measurements, std::string host="127.0.0.1", int tid=0, 
     std::string self_addr="127.0.0.1"):
-    db_(db), measurements_(measurements), ans_addr(self_addr), ans_port(std::to_string(7000+tid))
-  {
+    db_(db), measurements_(measurements), ans_addr(self_addr), ans_port(std::to_string(7000+tid)), 
+    tid_(tid) {
     if (db == nullptr) {
       memcache_read = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
       memcache_read_txn = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
       memcache_write = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
       memcache_ans = new WebQueuePull<MemcacheResponse>(new zmq::context_t(1), ans_port, ans_addr);
       
-      memcache_read->connect(zmq_read_ports[tid % zmq_read_ports.size()], host);
-      memcache_read_txn->connect(zmq_read_txn_ports[tid % zmq_read_txn_ports.size()], host);
-      memcache_write->connect(zmq_write_ports[tid % zmq_write_ports.size()], host);
+      for(int i = 0; i < zmq_read_ports.size(); i ++) {
+        memcache_read->connect(zmq_read_ports[i], host);
+      }
+      for(int i = 0; i < zmq_read_txn_ports.size(); i ++) {
+        memcache_read_txn->connect(zmq_read_txn_ports[i], host);
+      }
+      for(int i = 0; i < zmq_write_ports.size(); i ++) {
+        memcache_write->connect(zmq_write_ports[i], host);
+      }
       thread_pool_.push_back(std::async(std::launch::async, PullResp, this));
     }
   }
@@ -131,18 +138,19 @@ class DBWrapper : public DB {
     MemcacheRequest req{getTimestamp(), operations, ans_addr, ans_port, read_only, txn_op};
     if (read_only) {
       if (txn_op) {
-        memcache_read_txn->enqueue(req);
+        memcache_read_txn->enqueue(req, tid_);
       } else {
-        memcache_read->enqueue(req);
+        memcache_read->enqueue(req, tid_);
       }
     } else {
-      memcache_write->enqueue(req);
+      memcache_write->enqueue(req, tid_);
     }
   }
 
   DB *db_;
   Measurements *measurements_;
   const std::string ans_addr, ans_port;
+  int tid_;
 
   WebQueuePush<MemcacheRequest>* memcache_read = nullptr;
   WebQueuePush<MemcacheRequest>* memcache_read_txn = nullptr;

@@ -26,7 +26,7 @@ public:
 
     void enqueue(T value, int idx=0)
     {
-        assert(idx < push_sockets.size());
+        idx = idx % push_sockets.size();
         msgpack::sbuffer sbuf;
         msgpack::pack(sbuf, value);
 
