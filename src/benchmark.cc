@@ -123,7 +123,16 @@ void ParseCommandLine(int argc, const char *argv[], benchmark::utils::Properties
       }
       props.SetProperty("mode", argv[argindex]);
       argindex++;
-    }else if (strcmp(argv[argindex], "-run") == 0 || strcmp(argv[argindex], "-t") == 0) {
+    } else if (strcmp(argv[argindex], "-host") == 0) {
+      argindex++;
+      if (argindex >= argc) {
+        UsageMessage(argv[0]);
+        std::cerr << "Missing argument value for -host" << std::endl;
+        exit(0);
+      }
+      props.SetProperty("host", argv[argindex]);
+      argindex++;
+    } else if (strcmp(argv[argindex], "-run") == 0 || strcmp(argv[argindex], "-t") == 0) {
       argindex++;
       props.SetProperty("run", "true");
     } else if (strcmp(argv[argindex], "-load") == 0) {

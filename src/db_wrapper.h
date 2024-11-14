@@ -19,8 +19,8 @@ namespace benchmark {
 // Wrapper Class around DB; times and logs each Execute and ExecuteTransaction operation.
 class DBWrapper : public DB {
  public:
-  DBWrapper(DB *db, Measurements *measurements, int tid=0) :
-    db_(db), tid_(tid), ans_port(std::to_string(7000+tid)), measurements_(measurements) 
+  DBWrapper(DB *db, Measurements *measurements, std::string host="127.0.0.1", int tid=0):
+    db_(db), ans_port(std::to_string(7000+tid)), measurements_(measurements) 
   {
     if (db == nullptr) {
       memcache_read = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
@@ -28,9 +28,9 @@ class DBWrapper : public DB {
       memcache_write = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
       memcache_ans = new WebQueuePull<MemcacheResponse>(new zmq::context_t(1), ans_port);
       
-      memcache_read->connect(zmq_read_ports[tid % zmq_read_ports.size()]);
-      memcache_read_txn->connect(zmq_read_txn_ports[tid % zmq_read_txn_ports.size()]);
-      memcache_write->connect(zmq_write_ports[tid % zmq_write_ports.size()]);
+      memcache_read->connect(zmq_read_ports[tid % zmq_read_ports.size()], host);
+      memcache_read_txn->connect(zmq_read_txn_ports[tid % zmq_read_txn_ports.size()], host);
+      memcache_write->connect(zmq_write_ports[tid % zmq_write_ports.size()], host);
       thread_pool_.push_back(std::async(std::launch::async, PullResp, this));
     }
   }
@@ -140,7 +140,6 @@ class DBWrapper : public DB {
   }
 
   DB *db_;
-  int tid_;
   std::string ans_port;
   Measurements *measurements_;
 

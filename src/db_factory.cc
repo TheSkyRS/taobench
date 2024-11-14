@@ -17,7 +17,8 @@ bool DBFactory::RegisterDB(std::string db_name, DBCreator db_creator) {
 DB *DBFactory::CreateDB(utils::Properties *props, Measurements *measurements, 
   bool memcache, int tid) {
   if (memcache) {
-    return new DBWrapper(nullptr, measurements, tid);
+    std::string host = props->GetProperty("host", "127.0.0.1");
+    return new DBWrapper(nullptr, measurements, host, tid);
   }
   DB *db = CreateRawDB(props);
   if (db != nullptr) {

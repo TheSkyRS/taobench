@@ -96,6 +96,7 @@ class MemcacheWrapper {
         &MemcacheWrapper::DBThread, this, dbr_[i], zmq_db_ports[i]
       ));
     }
+    std::cout << "starting MemcacheWrapper" << std::endl;
   }
 
   void Reset() {}
