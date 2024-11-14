@@ -19,8 +19,9 @@ namespace benchmark {
 // Wrapper Class around DB; times and logs each Execute and ExecuteTransaction operation.
 class DBWrapper : public DB {
  public:
-  DBWrapper(DB *db, Measurements *measurements, std::string host="127.0.0.1", int tid=0):
-    db_(db), ans_port(std::to_string(7000+tid)), measurements_(measurements) 
+  DBWrapper(DB *db, Measurements *measurements, std::string host="127.0.0.1", int tid=0, 
+    std::string self_addr="127.0.0.1"):
+    db_(db), measurements_(measurements), ans_addr(self_addr), ans_port(std::to_string(7000+tid))
   {
     if (db == nullptr) {
       memcache_read = new WebQueuePush<MemcacheRequest>(new zmq::context_t(1));
@@ -127,7 +128,7 @@ class DBWrapper : public DB {
   }
 
   void SendCommand(const std::vector<DB_Operation> &operations, bool txn_op, bool read_only) {
-    MemcacheRequest req{getTimestamp(), operations, ans_port, read_only, txn_op};
+    MemcacheRequest req{getTimestamp(), operations, ans_addr, ans_port, read_only, txn_op};
     if (read_only) {
       if (txn_op) {
         memcache_read_txn->enqueue(req);
@@ -140,8 +141,8 @@ class DBWrapper : public DB {
   }
 
   DB *db_;
-  std::string ans_port;
   Measurements *measurements_;
+  const std::string ans_addr, ans_port;
 
   WebQueuePush<MemcacheRequest>* memcache_read = nullptr;
   WebQueuePush<MemcacheRequest>* memcache_read_txn = nullptr;

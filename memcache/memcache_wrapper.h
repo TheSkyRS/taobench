@@ -23,7 +23,7 @@
 #define ENQUEUE_RESPONSE(resp) \
     if (responses.find(req.resp_port) == responses.end()) { \
         responses[req.resp_port] = new WebQueuePush<MemcacheResponse>(new zmq::context_t(1)); \
-        responses[req.resp_port]->connect(req.resp_port); \
+        responses[req.resp_port]->connect(req.resp_port, req.resp_addr); \
     } \
     responses[req.resp_port]->enqueue(resp);
 
@@ -42,15 +42,17 @@ struct MemcacheResponse {
 struct MemcacheRequest {
   uint64_t timestamp;
   std::vector<DB::DB_Operation> operations;
+  std::string resp_addr;
   std::string resp_port;
   bool read_only;
   bool txn_op;
-  MSGPACK_DEFINE(timestamp, operations, resp_port, read_only, txn_op);
+  MSGPACK_DEFINE(timestamp, operations, resp_addr, resp_port, read_only, txn_op);
 };
 
 struct DBRequest {
   MemcacheResponse resp;
   std::vector<DB::DB_Operation> operations;
+  std::string resp_addr;
   std::string resp_port;
   bool read_only;
   bool txn_op;
@@ -133,7 +135,7 @@ class MemcacheWrapper {
         resp.hit_count += 1;
         ENQUEUE_RESPONSE(resp);
       } else {
-        auto* db_req = new DBRequest{resp, operations, req.resp_port, true, false};
+        auto* db_req = new DBRequest{resp, operations, req.resp_addr, req.resp_port, true, false};
         db_queue.enqueue(reinterpret_cast<uintptr_t>(db_req));
       }
     }
@@ -174,7 +176,7 @@ class MemcacheWrapper {
         ENQUEUE_RESPONSE(resp);
       } else {
         resp.hit_count += operations.size() - miss_ops.size();
-        auto* db_req = new DBRequest{resp, miss_ops, req.resp_port, true, true};
+        auto* db_req = new DBRequest{resp, miss_ops, req.resp_addr, req.resp_port, true, true};
         db_queue.enqueue(reinterpret_cast<uintptr_t>(db_req));
       }
     }

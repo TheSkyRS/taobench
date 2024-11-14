@@ -132,6 +132,15 @@ void ParseCommandLine(int argc, const char *argv[], benchmark::utils::Properties
       }
       props.SetProperty("host", argv[argindex]);
       argindex++;
+    } else if (strcmp(argv[argindex], "-self-addr") == 0) {
+      argindex++;
+      if (argindex >= argc) {
+        UsageMessage(argv[0]);
+        std::cerr << "Missing argument value for -self-addr" << std::endl;
+        exit(0);
+      }
+      props.SetProperty("self_addr", argv[argindex]);
+      argindex++;
     } else if (strcmp(argv[argindex], "-run") == 0 || strcmp(argv[argindex], "-t") == 0) {
       argindex++;
       props.SetProperty("run", "true");
