@@ -1,0 +1,190 @@
+Scanning dependencies of target taobench
+[  7%] Building CXX object CMakeFiles/taobench.dir/src/benchmark.cc.o
+In file included from /local/taobench/src/db_factory.h:7,
+                 from /local/taobench/src/benchmark.cc:18:
+/local/taobench/memcache/memcache_wrapper.h: In member function ‘void benchmark::MemcacheWrapper::PollRead(std::string, std::string)’:
+/local/taobench/memcache/memcache_wrapper.h:81:67: error: use of deleted function ‘std::unordered_map<_Key, _Tp, _Hash, _Pred, _Alloc>::unordered_map() [with _Key = benchmark::FullAddr; _Tp = WebQueuePush<benchmark::MemcacheResponse>*; _Hash = std::hash<benchmark::FullAddr>; _Pred = std::equal_to<benchmark::FullAddr>; _Alloc = std::allocator<std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*> >]’
+   81 |     std::unordered_map<FullAddr, WebQueuePush<MemcacheResponse>*> responses;
+      |                                                                   ^~~~~~~~~
+In file included from /usr/include/c++/11/unordered_map:47,
+                 from /usr/include/c++/11/functional:61,
+                 from /usr/include/c++/11/pstl/glue_algorithm_defs.h:13,
+                 from /usr/include/c++/11/algorithm:74,
+                 from /local/taobench/src/utils.h:4,
+                 from /local/taobench/src/benchmark.cc:12:
+/usr/include/c++/11/bits/unordered_map.h:141:7: note: ‘std::unordered_map<_Key, _Tp, _Hash, _Pred, _Alloc>::unordered_map() [with _Key = benchmark::FullAddr; _Tp = WebQueuePush<benchmark::MemcacheResponse>*; _Hash = std::hash<benchmark::FullAddr>; _Pred = std::equal_to<benchmark::FullAddr>; _Alloc = std::allocator<std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*> >]’ is implicitly deleted because the default definition would be ill-formed:
+  141 |       unordered_map() = default;
+      |       ^~~~~~~~~~~~~
+/usr/include/c++/11/bits/unordered_map.h:141:7: error: use of deleted function ‘std::_Hashtable<_Key, _Value, _Alloc, _ExtractKey, _Equal, _Hash, _RangeHash, _Unused, _RehashPolicy, _Traits>::_Hashtable() [with _Key = benchmark::FullAddr; _Value = std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*>; _Alloc = std::allocator<std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*> >; _ExtractKey = std::__detail::_Select1st; _Equal = std::equal_to<benchmark::FullAddr>; _Hash = std::hash<benchmark::FullAddr>; _RangeHash = std::__detail::_Mod_range_hashing; _Unused = std::__detail::_Default_ranged_hash; _RehashPolicy = std::__detail::_Prime_rehash_policy; _Traits = std::__detail::_Hashtable_traits<true, false, true>]’
+In file included from /usr/include/c++/11/unordered_map:46,
+                 from /usr/include/c++/11/functional:61,
+                 from /usr/include/c++/11/pstl/glue_algorithm_defs.h:13,
+                 from /usr/include/c++/11/algorithm:74,
+                 from /local/taobench/src/utils.h:4,
+                 from /local/taobench/src/benchmark.cc:12:
+/usr/include/c++/11/bits/hashtable.h:528:7: note: ‘std::_Hashtable<_Key, _Value, _Alloc, _ExtractKey, _Equal, _Hash, _RangeHash, _Unused, _RehashPolicy, _Traits>::_Hashtable() [with _Key = benchmark::FullAddr; _Value = std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*>; _Alloc = std::allocator<std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*> >; _ExtractKey = std::__detail::_Select1st; _Equal = std::equal_to<benchmark::FullAddr>; _Hash = std::hash<benchmark::FullAddr>; _RangeHash = std::__detail::_Mod_range_hashing; _Unused = std::__detail::_Default_ranged_hash; _RehashPolicy = std::__detail::_Prime_rehash_policy; _Traits = std::__detail::_Hashtable_traits<true, false, true>]’ is implicitly deleted because the default definition would be ill-formed:
+  528 |       _Hashtable() = default;
+      |       ^~~~~~~~~~
+/usr/include/c++/11/bits/hashtable.h:528:7: error: use of deleted function ‘std::__detail::_Hashtable_base<_Key, _Value, _ExtractKey, _Equal, _Hash, _RangeHash, _Unused, _Traits>::_Hashtable_base() [with _Key = benchmark::FullAddr; _Value = std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*>; _ExtractKey = std::__detail::_Select1st; _Equal = std::equal_to<benchmark::FullAddr>; _Hash = std::hash<benchmark::FullAddr>; _RangeHash = std::__detail::_Mod_range_hashing; _Unused = std::__detail::_Default_ranged_hash; _Traits = std::__detail::_Hashtable_traits<true, false, true>]’
+In file included from /usr/include/c++/11/bits/hashtable.h:35,
+                 from /usr/include/c++/11/unordered_map:46,
+                 from /usr/include/c++/11/functional:61,
+                 from /usr/include/c++/11/pstl/glue_algorithm_defs.h:13,
+                 from /usr/include/c++/11/algorithm:74,
+                 from /local/taobench/src/utils.h:4,
+                 from /local/taobench/src/benchmark.cc:12:
+/usr/include/c++/11/bits/hashtable_policy.h:1604:7: note: ‘std::__detail::_Hashtable_base<_Key, _Value, _ExtractKey, _Equal, _Hash, _RangeHash, _Unused, _Traits>::_Hashtable_base() [with _Key = benchmark::FullAddr; _Value = std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*>; _ExtractKey = std::__detail::_Select1st; _Equal = std::equal_to<benchmark::FullAddr>; _Hash = std::hash<benchmark::FullAddr>; _RangeHash = std::__detail::_Mod_range_hashing; _Unused = std::__detail::_Default_ranged_hash; _Traits = std::__detail::_Hashtable_traits<true, false, true>]’ is implicitly deleted because the default definition would be ill-formed:
+ 1604 |       _Hashtable_base() = default;
+      |       ^~~~~~~~~~~~~~~
+/usr/include/c++/11/bits/hashtable_policy.h:1604:7: error: use of deleted function ‘std::__detail::_Hash_code_base<_Key, _Value, _ExtractKey, _Hash, _RangeHash, _Unused, __cache_hash_code>::_Hash_code_base() [with _Key = benchmark::FullAddr; _Value = std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*>; _ExtractKey = std::__detail::_Select1st; _Hash = std::hash<benchmark::FullAddr>; _RangeHash = std::__detail::_Mod_range_hashing; _Unused = std::__detail::_Default_ranged_hash; bool __cache_hash_code = true]’
+/usr/include/c++/11/bits/hashtable_policy.h: In instantiation of ‘std::__detail::_Hashtable_ebo_helper<_Nm, _Tp, true>::_Hashtable_ebo_helper() [with int _Nm = 1; _Tp = std::hash<benchmark::FullAddr>]’:
+/usr/include/c++/11/bits/hashtable_policy.h:1210:7:   required from here
+/usr/include/c++/11/bits/hashtable_policy.h:1127:49: error: use of deleted function ‘std::hash<benchmark::FullAddr>::hash()’
+ 1127 |       _Hashtable_ebo_helper() noexcept(noexcept(_Tp())) : _Tp() { }
+      |                                                 ^~~~~
+In file included from /usr/include/c++/11/string_view:42,
+                 from /usr/include/c++/11/bits/basic_string.h:48,
+                 from /usr/include/c++/11/string:55,
+                 from /local/taobench/src/benchmark.cc:4:
+/usr/include/c++/11/bits/functional_hash.h:102:12: note: ‘std::hash<benchmark::FullAddr>::hash()’ is implicitly deleted because the default definition would be ill-formed:
+  102 |     struct hash : __hash_enum<_Tp>
+      |            ^~~~
+/usr/include/c++/11/bits/functional_hash.h:102:12: error: no matching function for call to ‘std::__hash_enum<benchmark::FullAddr, false>::__hash_enum()’
+/usr/include/c++/11/bits/functional_hash.h:83:7: note: candidate: ‘std::__hash_enum<_Tp, <anonymous> >::__hash_enum(std::__hash_enum<_Tp, <anonymous> >&&) [with _Tp = benchmark::FullAddr; bool <anonymous> = false]’
+   83 |       __hash_enum(__hash_enum&&);
+      |       ^~~~~~~~~~~
+/usr/include/c++/11/bits/functional_hash.h:83:7: note:   candidate expects 1 argument, 0 provided
+/usr/include/c++/11/bits/functional_hash.h:102:12: error: ‘std::__hash_enum<_Tp, <anonymous> >::~__hash_enum() [with _Tp = benchmark::FullAddr; bool <anonymous> = false]’ is private within this context
+  102 |     struct hash : __hash_enum<_Tp>
+      |            ^~~~
+/usr/include/c++/11/bits/functional_hash.h:84:7: note: declared private here
+   84 |       ~__hash_enum();
+      |       ^
+In file included from /usr/include/c++/11/bits/hashtable.h:35,
+                 from /usr/include/c++/11/unordered_map:46,
+                 from /usr/include/c++/11/functional:61,
+                 from /usr/include/c++/11/pstl/glue_algorithm_defs.h:13,
+                 from /usr/include/c++/11/algorithm:74,
+                 from /local/taobench/src/utils.h:4,
+                 from /local/taobench/src/benchmark.cc:12:
+/usr/include/c++/11/bits/hashtable_policy.h:1210:7: note: ‘std::__detail::_Hash_code_base<_Key, _Value, _ExtractKey, _Hash, _RangeHash, _Unused, __cache_hash_code>::_Hash_code_base() [with _Key = benchmark::FullAddr; _Value = std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*>; _ExtractKey = std::__detail::_Select1st; _Hash = std::hash<benchmark::FullAddr>; _RangeHash = std::__detail::_Mod_range_hashing; _Unused = std::__detail::_Default_ranged_hash; bool __cache_hash_code = true]’ is implicitly deleted because the default definition would be ill-formed:
+ 1210 |       _Hash_code_base() = default;
+      |       ^~~~~~~~~~~~~~~
+/usr/include/c++/11/bits/hashtable_policy.h:1210:7: error: use of deleted function ‘std::__detail::_Hashtable_ebo_helper<1, std::hash<benchmark::FullAddr>, true>::~_Hashtable_ebo_helper()’
+/usr/include/c++/11/bits/hashtable_policy.h:1124:12: note: ‘std::__detail::_Hashtable_ebo_helper<1, std::hash<benchmark::FullAddr>, true>::~_Hashtable_ebo_helper()’ is implicitly deleted because the default definition would be ill-formed:
+ 1124 |     struct _Hashtable_ebo_helper<_Nm, _Tp, true>
+      |            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/include/c++/11/bits/hashtable_policy.h:1124:12: error: use of deleted function ‘std::hash<benchmark::FullAddr>::~hash()’
+In file included from /usr/include/c++/11/string_view:42,
+                 from /usr/include/c++/11/bits/basic_string.h:48,
+                 from /usr/include/c++/11/string:55,
+                 from /local/taobench/src/benchmark.cc:4:
+/usr/include/c++/11/bits/functional_hash.h:102:12: note: ‘std::hash<benchmark::FullAddr>::~hash()’ is implicitly deleted because the default definition would be ill-formed:
+  102 |     struct hash : __hash_enum<_Tp>
+      |            ^~~~
+/usr/include/c++/11/bits/functional_hash.h:102:12: error: ‘std::__hash_enum<_Tp, <anonymous> >::~__hash_enum() [with _Tp = benchmark::FullAddr; bool <anonymous> = false]’ is private within this context
+/usr/include/c++/11/bits/functional_hash.h:84:7: note: declared private here
+   84 |       ~__hash_enum();
+      |       ^
+In file included from /usr/include/c++/11/bits/hashtable.h:35,
+                 from /usr/include/c++/11/unordered_map:46,
+                 from /usr/include/c++/11/functional:61,
+                 from /usr/include/c++/11/pstl/glue_algorithm_defs.h:13,
+                 from /usr/include/c++/11/algorithm:74,
+                 from /local/taobench/src/utils.h:4,
+                 from /local/taobench/src/benchmark.cc:12:
+/usr/include/c++/11/bits/hashtable_policy.h:1604:7: error: use of deleted function ‘std::__detail::_Hash_code_base<benchmark::FullAddr, std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*>, std::__detail::_Select1st, std::hash<benchmark::FullAddr>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, true>::~_Hash_code_base()’
+ 1604 |       _Hashtable_base() = default;
+      |       ^~~~~~~~~~~~~~~
+/usr/include/c++/11/bits/hashtable_policy.h:1188:12: note: ‘std::__detail::_Hash_code_base<benchmark::FullAddr, std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*>, std::__detail::_Select1st, std::hash<benchmark::FullAddr>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, true>::~_Hash_code_base()’ is implicitly deleted because the default definition would be ill-formed:
+ 1188 |     struct _Hash_code_base
+      |            ^~~~~~~~~~~~~~~
+/usr/include/c++/11/bits/hashtable_policy.h:1188:12: error: use of deleted function ‘std::__detail::_Hashtable_ebo_helper<1, std::hash<benchmark::FullAddr>, true>::~_Hashtable_ebo_helper()’
+In file included from /usr/include/c++/11/unordered_map:46,
+                 from /usr/include/c++/11/functional:61,
+                 from /usr/include/c++/11/pstl/glue_algorithm_defs.h:13,
+                 from /usr/include/c++/11/algorithm:74,
+                 from /local/taobench/src/utils.h:4,
+                 from /local/taobench/src/benchmark.cc:12:
+/usr/include/c++/11/bits/hashtable.h:528:7: error: use of deleted function ‘std::__detail::_Hashtable_base<benchmark::FullAddr, std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*>, std::__detail::_Select1st, std::equal_to<benchmark::FullAddr>, std::hash<benchmark::FullAddr>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Hashtable_traits<true, false, true> >::~_Hashtable_base()’
+  528 |       _Hashtable() = default;
+      |       ^~~~~~~~~~
+In file included from /usr/include/c++/11/bits/hashtable.h:35,
+                 from /usr/include/c++/11/unordered_map:46,
+                 from /usr/include/c++/11/functional:61,
+                 from /usr/include/c++/11/pstl/glue_algorithm_defs.h:13,
+                 from /usr/include/c++/11/algorithm:74,
+                 from /local/taobench/src/utils.h:4,
+                 from /local/taobench/src/benchmark.cc:12:
+/usr/include/c++/11/bits/hashtable_policy.h:1561:12: note: ‘std::__detail::_Hashtable_base<benchmark::FullAddr, std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*>, std::__detail::_Select1st, std::equal_to<benchmark::FullAddr>, std::hash<benchmark::FullAddr>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Hashtable_traits<true, false, true> >::~_Hashtable_base()’ is implicitly deleted because the default definition would be ill-formed:
+ 1561 |     struct _Hashtable_base
+      |            ^~~~~~~~~~~~~~~
+/usr/include/c++/11/bits/hashtable_policy.h:1561:12: error: use of deleted function ‘std::__detail::_Hash_code_base<benchmark::FullAddr, std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*>, std::__detail::_Select1st, std::hash<benchmark::FullAddr>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, true>::~_Hash_code_base()’
+In file included from /usr/include/c++/11/unordered_map:46,
+                 from /usr/include/c++/11/functional:61,
+                 from /usr/include/c++/11/pstl/glue_algorithm_defs.h:13,
+                 from /usr/include/c++/11/algorithm:74,
+                 from /local/taobench/src/utils.h:4,
+                 from /local/taobench/src/benchmark.cc:12:
+/usr/include/c++/11/bits/hashtable.h:528:7: error: use of deleted function ‘constexpr std::_Enable_default_constructor<false, _Tag>::_Enable_default_constructor() [with _Tag = std::__detail::_Hash_node_base]’
+  528 |       _Hashtable() = default;
+      |       ^~~~~~~~~~
+In file included from /usr/include/c++/11/bits/hashtable.h:36,
+                 from /usr/include/c++/11/unordered_map:46,
+                 from /usr/include/c++/11/functional:61,
+                 from /usr/include/c++/11/pstl/glue_algorithm_defs.h:13,
+                 from /usr/include/c++/11/algorithm:74,
+                 from /local/taobench/src/utils.h:4,
+                 from /local/taobench/src/benchmark.cc:12:
+/usr/include/c++/11/bits/enable_special_members.h:113:15: note: declared here
+  113 |     constexpr _Enable_default_constructor() noexcept = delete;
+      |               ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /local/taobench/src/db_factory.h:7,
+                 from /local/taobench/src/benchmark.cc:18:
+/local/taobench/memcache/memcache_wrapper.h: In member function ‘void benchmark::MemcacheWrapper::PollReadTxn(std::string, std::string)’:
+/local/taobench/memcache/memcache_wrapper.h:114:67: error: use of deleted function ‘std::unordered_map<_Key, _Tp, _Hash, _Pred, _Alloc>::unordered_map() [with _Key = benchmark::FullAddr; _Tp = WebQueuePush<benchmark::MemcacheResponse>*; _Hash = std::hash<benchmark::FullAddr>; _Pred = std::equal_to<benchmark::FullAddr>; _Alloc = std::allocator<std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*> >]’
+  114 |     std::unordered_map<FullAddr, WebQueuePush<MemcacheResponse>*> responses;
+      |                                                                   ^~~~~~~~~
+/local/taobench/memcache/memcache_wrapper.h: In member function ‘void benchmark::MemcacheWrapper::PollWrite(std::string, benchmark::DB*, int)’:
+/local/taobench/memcache/memcache_wrapper.h:156:67: error: use of deleted function ‘std::unordered_map<_Key, _Tp, _Hash, _Pred, _Alloc>::unordered_map() [with _Key = benchmark::FullAddr; _Tp = WebQueuePush<benchmark::MemcacheResponse>*; _Hash = std::hash<benchmark::FullAddr>; _Pred = std::equal_to<benchmark::FullAddr>; _Alloc = std::allocator<std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*> >]’
+  156 |     std::unordered_map<FullAddr, WebQueuePush<MemcacheResponse>*> responses;
+      |                                                                   ^~~~~~~~~
+/local/taobench/memcache/memcache_wrapper.h: In member function ‘void benchmark::MemcacheWrapper::DBThread(benchmark::DB*, std::string)’:
+/local/taobench/memcache/memcache_wrapper.h:212:67: error: use of deleted function ‘std::unordered_map<_Key, _Tp, _Hash, _Pred, _Alloc>::unordered_map() [with _Key = benchmark::FullAddr; _Tp = WebQueuePush<benchmark::MemcacheResponse>*; _Hash = std::hash<benchmark::FullAddr>; _Pred = std::equal_to<benchmark::FullAddr>; _Alloc = std::allocator<std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*> >]’
+  212 |     std::unordered_map<FullAddr, WebQueuePush<MemcacheResponse>*> responses;
+      |                                                                   ^~~~~~~~~
+In file included from /usr/include/c++/11/unordered_map:46,
+                 from /usr/include/c++/11/functional:61,
+                 from /usr/include/c++/11/pstl/glue_algorithm_defs.h:13,
+                 from /usr/include/c++/11/algorithm:74,
+                 from /local/taobench/src/utils.h:4,
+                 from /local/taobench/src/benchmark.cc:12:
+/usr/include/c++/11/bits/hashtable.h: In instantiation of ‘std::_Hashtable<_Key, _Value, _Alloc, _ExtractKey, _Equal, _Hash, _RangeHash, _Unused, _RehashPolicy, _Traits>::~_Hashtable() [with _Key = benchmark::FullAddr; _Value = std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*>; _Alloc = std::allocator<std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*> >; _ExtractKey = std::__detail::_Select1st; _Equal = std::equal_to<benchmark::FullAddr>; _Hash = std::hash<benchmark::FullAddr>; _RangeHash = std::__detail::_Mod_range_hashing; _Unused = std::__detail::_Default_ranged_hash; _RehashPolicy = std::__detail::_Prime_rehash_policy; _Traits = std::__detail::_Hashtable_traits<true, false, true>]’:
+/usr/include/c++/11/bits/unordered_map.h:102:11:   required from here
+/usr/include/c++/11/bits/hashtable.h:1534:5: error: use of deleted function ‘std::__detail::_Hashtable_base<benchmark::FullAddr, std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*>, std::__detail::_Select1st, std::equal_to<benchmark::FullAddr>, std::hash<benchmark::FullAddr>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Hashtable_traits<true, false, true> >::~_Hashtable_base()’
+ 1534 |     }
+      |     ^
+In file included from /usr/include/c++/11/bits/hashtable.h:35,
+                 from /usr/include/c++/11/unordered_map:46,
+                 from /usr/include/c++/11/functional:61,
+                 from /usr/include/c++/11/pstl/glue_algorithm_defs.h:13,
+                 from /usr/include/c++/11/algorithm:74,
+                 from /local/taobench/src/utils.h:4,
+                 from /local/taobench/src/benchmark.cc:12:
+/usr/include/c++/11/bits/hashtable_policy.h: In instantiation of ‘std::__detail::_Hash_code_base<_Key, _Value, _ExtractKey, _Hash, _RangeHash, _Unused, __cache_hash_code>::__hash_code std::__detail::_Hash_code_base<_Key, _Value, _ExtractKey, _Hash, _RangeHash, _Unused, __cache_hash_code>::_M_hash_code(const _Key&) const [with _Key = benchmark::FullAddr; _Value = std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*>; _ExtractKey = std::__detail::_Select1st; _Hash = std::hash<benchmark::FullAddr>; _RangeHash = std::__detail::_Mod_range_hashing; _Unused = std::__detail::_Default_ranged_hash; bool __cache_hash_code = true; std::__detail::_Hash_code_base<_Key, _Value, _ExtractKey, _Hash, _RangeHash, _Unused, __cache_hash_code>::__hash_code = long unsigned int]’:
+/usr/include/c++/11/bits/hashtable.h:1593:46:   required from ‘std::_Hashtable<_Key, _Value, _Alloc, _ExtractKey, _Equal, _Hash, _RangeHash, _Unused, _RehashPolicy, _Traits>::iterator std::_Hashtable<_Key, _Value, _Alloc, _ExtractKey, _Equal, _Hash, _RangeHash, _Unused, _RehashPolicy, _Traits>::find(const key_type&) [with _Key = benchmark::FullAddr; _Value = std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*>; _Alloc = std::allocator<std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*> >; _ExtractKey = std::__detail::_Select1st; _Equal = std::equal_to<benchmark::FullAddr>; _Hash = std::hash<benchmark::FullAddr>; _RangeHash = std::__detail::_Mod_range_hashing; _Unused = std::__detail::_Default_ranged_hash; _RehashPolicy = std::__detail::_Prime_rehash_policy; _Traits = std::__detail::_Hashtable_traits<true, false, true>; std::_Hashtable<_Key, _Value, _Alloc, _ExtractKey, _Equal, _Hash, _RangeHash, _Unused, _RehashPolicy, _Traits>::iterator = std::__detail::_Insert_base<benchmark::FullAddr, std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*>, std::allocator<std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*> >, std::__detail::_Select1st, std::equal_to<benchmark::FullAddr>, std::hash<benchmark::FullAddr>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true> >::iterator; std::_Hashtable<_Key, _Value, _Alloc, _ExtractKey, _Equal, _Hash, _RangeHash, _Unused, _RehashPolicy, _Traits>::key_type = benchmark::FullAddr]’
+/usr/include/c++/11/bits/unordered_map.h:869:25:   required from ‘std::unordered_map<_Key, _Tp, _Hash, _Pred, _Alloc>::iterator std::unordered_map<_Key, _Tp, _Hash, _Pred, _Alloc>::find(const key_type&) [with _Key = benchmark::FullAddr; _Tp = WebQueuePush<benchmark::MemcacheResponse>*; _Hash = std::hash<benchmark::FullAddr>; _Pred = std::equal_to<benchmark::FullAddr>; _Alloc = std::allocator<std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*> >; std::unordered_map<_Key, _Tp, _Hash, _Pred, _Alloc>::iterator = std::__detail::_Insert_base<benchmark::FullAddr, std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*>, std::allocator<std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*> >, std::__detail::_Select1st, std::equal_to<benchmark::FullAddr>, std::hash<benchmark::FullAddr>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<true, false, true> >::iterator; std::unordered_map<_Key, _Tp, _Hash, _Pred, _Alloc>::key_type = benchmark::FullAddr]’
+/local/taobench/memcache/memcache_wrapper.h:104:9:   required from here
+/usr/include/c++/11/bits/hashtable_policy.h:1217:23: error: static assertion failed: hash function must be invocable with an argument of key type
+ 1217 |         static_assert(__is_invocable<const _Hash&, const _Key&>{},
+      |                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/include/c++/11/bits/hashtable_policy.h:1217:23: note: ‘std::__is_invocable<const std::hash<benchmark::FullAddr>&, const benchmark::FullAddr&>{}’ evaluates to false
+/usr/include/c++/11/bits/hashtable_policy.h:1219:25: error: no match for call to ‘(const std::hash<benchmark::FullAddr>) (const benchmark::FullAddr&)’
+ 1219 |         return _M_hash()(__k);
+      |                ~~~~~~~~~^~~~~
+CMakeFiles/taobench.dir/build.make:62: recipe for target 'CMakeFiles/taobench.dir/src/benchmark.cc.o' failed
+make[2]: *** [CMakeFiles/taobench.dir/src/benchmark.cc.o] Error 1
+CMakeFiles/Makefile2:67: recipe for target 'CMakeFiles/taobench.dir/all' failed
+make[1]: *** [CMakeFiles/taobench.dir/all] Error 2
+Makefile:83: recipe for target 'all' failed
+make: *** [all] Error 2

@@ -22,11 +22,12 @@
 #define RTHREADS 2
 
 #define ENQUEUE_RESPONSE(resp) \
-    if (responses.find(req.resp_port) == responses.end()) { \
-        responses[req.resp_port] = new WebQueuePush<MemcacheResponse>(new zmq::context_t(1)); \
-        responses[req.resp_port]->connect(req.resp_port, req.resp_addr); \
+    if (responses.find(req.resp_addr) == responses.end()) { \
+        responses[req.resp_addr] = new WebQueuePush<MemcacheResponse>(new zmq::context_t(1)); \
+        responses[req.resp_addr]->connect(req.resp_addr.port, req.resp_addr.addr); \
     } \
-    responses[req.resp_port]->enqueue(resp);
+    resp.prev_addr = req.prev_addr; \
+    responses[req.resp_addr]->enqueue(resp);
 
 namespace benchmark {
 
@@ -77,7 +78,7 @@ class MemcacheWrapper {
 
   void PollRead(std::string port, std::string db_port) {
     WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port, self_addr_);
-    std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
+    std::unordered_map<FullAddr, WebQueuePush<MemcacheResponse>*, FullAddrHash> responses;
     WebQueuePush<uintptr_t> db_queue(new zmq::context_t(1));
     db_queue.connect(db_port);
 
@@ -87,7 +88,7 @@ class MemcacheWrapper {
       if (write_txn_flag.load() || !requests.dequeue(req)) {
         continue;
       }
-      // std::cout << "read from " << req.resp_addr << ":" << req.resp_port << std::endl; 
+      // std::cout << "read from " << req.resp_addr.addr << ":" << req.resp_addr.port << std::endl; 
 
       MemcacheResponse resp;
       resp.timestamp = req.timestamp;
@@ -95,14 +96,14 @@ class MemcacheWrapper {
       auto& read_buffer = resp.read_buffer;
       
       resp.operation = operations[0].operation;
-      resp.read_count += 1;
+      resp.hit_count.read += 1;
 
       if (memcache_get.get(operations[0], read_buffer)) {
         resp.s = Status::kOK;
-        resp.hit_count += 1;
+        resp.hit_count.hit += 1;
         ENQUEUE_RESPONSE(resp);
       } else {
-        auto* db_req = new DBRequest{resp, operations, req.resp_addr, req.resp_port, true, false};
+        auto* db_req = new DBRequest{resp, operations, req.resp_addr, req.prev_addr, true, false};
         db_queue.enqueue(reinterpret_cast<uintptr_t>(db_req));
       }
     }
@@ -110,7 +111,7 @@ class MemcacheWrapper {
 
   void PollReadTxn(std::string port, std::string db_port) {
     WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port, self_addr_);
-    std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
+    std::unordered_map<FullAddr, WebQueuePush<MemcacheResponse>*, FullAddrHash> responses;
     WebQueuePush<uintptr_t> db_queue(new zmq::context_t(1));
     db_queue.connect(db_port);
 
@@ -128,7 +129,7 @@ class MemcacheWrapper {
       
       resp.operation = Operation::READTRANSACTION;
       read_buffer.reserve(operations.size());
-      resp.read_count += operations.size();
+      resp.hit_count.read += operations.size();
 
       std::vector<DB::DB_Operation> miss_ops;
       for (size_t i = 0; i < operations.size(); i++) {
@@ -142,8 +143,8 @@ class MemcacheWrapper {
         resp.s = Status::kOK; 
         ENQUEUE_RESPONSE(resp);
       } else {
-        resp.hit_count += operations.size() - miss_ops.size();
-        auto* db_req = new DBRequest{resp, miss_ops, req.resp_addr, req.resp_port, true, true};
+        resp.hit_count.hit += operations.size() - miss_ops.size();
+        auto* db_req = new DBRequest{resp, miss_ops, req.resp_addr, req.prev_addr, true, true};
         db_queue.enqueue(reinterpret_cast<uintptr_t>(db_req));
       }
     }
@@ -152,7 +153,7 @@ class MemcacheWrapper {
   void PollWrite(std::string port, DB *db, int interval) {
     WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port, self_addr_);
     requests.setup(0);
-    std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
+    std::unordered_map<FullAddr, WebQueuePush<MemcacheResponse>*, FullAddrHash> responses;
 
     MemcacheRequest req;
     MemcachedClient memcache_put;
@@ -208,7 +209,7 @@ class MemcacheWrapper {
   }
 
   void DBThread(DB *db, std::string db_port) {
-    std::unordered_map<std::string, WebQueuePush<MemcacheResponse>*> responses;
+    std::unordered_map<FullAddr, WebQueuePush<MemcacheResponse>*, FullAddrHash> responses;
     WebQueuePull<uintptr_t> db_queue(new zmq::context_t(1), db_port);
     
     uintptr_t req_ptr;

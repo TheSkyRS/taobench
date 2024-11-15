@@ -78,7 +78,7 @@ class DBWrapper : public DB {
     bool read_only = operation.operation == Operation::READ;
     const std::vector<DB::DB_Operation> operations{operation};
     memcache_router->enqueue(
-      {getTimestamp(), operations, ans_addr_, ans_port_, read_only, txn_op},
+      {getTimestamp(), operations, {ans_addr_, ans_port_}, {"", ""}, read_only, txn_op},
     tid_);
     return Status::kOK;
   }
@@ -88,7 +88,7 @@ class DBWrapper : public DB {
                             bool read_only = false) 
   {
     memcache_router->enqueue(
-      {getTimestamp(), operations, ans_addr_, ans_port_, read_only, true},
+      {getTimestamp(), operations, {ans_addr_, ans_port_}, {"", ""}, read_only, true},
     tid_);
     return Status::kOK;
   }
@@ -124,7 +124,7 @@ class DBWrapper : public DB {
       uint64_t elapsed = getTimestamp() - resp.timestamp;
       if (resp.s == Status::kOK) {
         clz->measurements_->Report(resp.operation, elapsed);
-        clz->measurements_->ReportRead(resp.hit_count, resp.read_count);
+        clz->measurements_->ReportRead(resp.hit_count.hit, resp.hit_count.read);
       }
     }
   }
