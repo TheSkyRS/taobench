@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "../memcache/lock_free_queue.h"
+#include "../memcache/zmq_utils.h"
 
 struct TestData {
     int id;

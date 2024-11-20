@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "../memcache/memcache_struct.h"
-#include "../memcache/lock_free_queue.h"
+#include "../memcache/zmq_utils.h"
 
 using namespace benchmark;
 

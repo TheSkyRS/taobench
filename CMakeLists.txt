@@ -24,7 +24,7 @@ if(WITH_MEMCACHE)
   target_sources(taobench PRIVATE
     memcache/memcache.h
     memcache/memcache.cc
-    memcache/lock_free_queue.h
+    memcache/zmq_utils.h
     memcache/memcache_wrapper.h)
   target_link_libraries(taobench -lmemcached)
 endif()

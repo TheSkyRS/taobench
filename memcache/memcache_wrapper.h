@@ -15,7 +15,7 @@
 #include "timer.h"
 #include "utils.h"
 #include "memcache.h"
-#include "lock_free_queue.h"
+#include "zmq_utils.h"
 #include "db_factory.h"
 #include "memcache_struct.h"
 
@@ -46,13 +46,13 @@ class MemcacheWrapper {
       int j = i + zmq_read_ports.size();
       auto& db_port = zmq_dbr_ports[j % zmq_dbr_ports.size()];
       thread_pool_.push_back(std::async(std::launch::async, &MemcacheWrapper::PollReadTxn, 
-        this, zmq_read_txn_ports[i], db_port, zmq_read_txn_rports[i]
+        this, zmq_read_txn_ports[i], db_port, zmq_read_txn_rports[i], i
       ));
     }
     for (size_t i = 0; i < zmq_write_ports.size(); i++) {
       auto& db_port = zmq_dbw_ports[i % zmq_dbw_ports.size()];
       thread_pool_.push_back(std::async(std::launch::async, &MemcacheWrapper::PollWrite, 
-        this, zmq_write_ports[i], db_port, zmq_write_rports[i]
+        this, zmq_write_ports[i], db_port, zmq_write_rports[i], 3000
       ));
     }
     for (size_t i = 0; i < zmq_dbr_ports.size(); i++) {
@@ -62,7 +62,7 @@ class MemcacheWrapper {
     }
     for (size_t i = 0; i < zmq_dbw_ports.size(); i++) {
       thread_pool_.push_back(std::async(std::launch::async, &MemcacheWrapper::DBWThread, 
-        this, dbw_[i], zmq_dbw_ports[i], 3000
+        this, dbw_[i], zmq_dbw_ports[i], 1000
       ));
     }
     std::cout << "starting MemcacheWrapper" << std::endl;
@@ -84,20 +84,25 @@ class MemcacheWrapper {
     responses[addr]->enqueue(resp);
   }
 
-  inline void InvalidCache(InvalidRequest& req, MemcachedClient& memcache_put) {
-    write_flag.store(true);
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    for (const auto& op: req.wops) {
-      memcache_put.invalidate(op);
+  inline void InvalidCache(WebSubscribe<InvalidRequest>& invalid_sub, MemcachedClient& memcache, int idx) {
+    InvalidRequest req, full_req;
+    while (invalid_sub.poll(req)) {
+      if (req.hash_id % zmq_read_txn_ports.size() != idx) {
+        continue;
+      }
+      full_req.wops.insert(full_req.wops.end(), req.wops.begin(), req.wops.end());
+      full_req.wops_txn.insert(full_req.wops_txn.end(), req.wops_txn.begin(), req.wops_txn.end());
+    }
+    
+    for (const auto& op: full_req.wops) {
+      memcache.invalidate(op);
     }
     write_txn_flag.store(true);
-    for (const auto& op: req.wops_txn) {
-      memcache_put.invalidate(op);
+    for (const auto& op: full_req.wops_txn) {
+      memcache.invalidate(op);
     }
     write_txn_flag.store(false);
-    write_flag.store(false);
-
-    std::cout << "write back " << req.wops.size() << " scala and " << req.wops_txn.size() 
+    std::cout << "write back " << full_req.wops.size() << " scala and " << full_req.wops_txn.size() 
               << " txn" << std::endl;
   }
 
@@ -141,22 +146,31 @@ class MemcacheWrapper {
     }
   }
 
-  void PollReadTxn(std::string port, std::string db_port, std::string ans_port) {
+  void PollReadTxn(std::string port, std::string db_port, std::string ans_port, int idx) {
     WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port, self_addr_);
     WebQueuePull<MemcacheResponse> answers(new zmq::context_t(1), ans_port, self_addr_);
     ResponseMap responses;
+
+    WebSubscribe<InvalidRequest> invalid_sub(new zmq::context_t(1), zmq_invalid_port, self_addr_);
     WebQueuePush<DBRequest> db_queue(new zmq::context_t(1));
     db_queue.connect(db_port, self_addr_);
 
     MemcacheRequest req;
     MemcacheResponse ans;
-    MemcachedClient memcache_get;
+    MemcachedClient memcache;
     while (true) {
+      if (write_flag.load() > 0) {
+        write_flag.fetch_sub(1);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        InvalidCache(invalid_sub, memcache, idx);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      }
+
       if (answers.dequeue(ans)) {
         SendResponse(ans, ans.resp_addr, responses);
       }
 
-      if (write_flag.load() || !requests.dequeue(req)) {
+      if (!requests.dequeue(req)) {
         continue;
       }
 
@@ -173,7 +187,7 @@ class MemcacheWrapper {
 
       std::vector<DB::DB_Operation> miss_ops;
       for (size_t i = 0; i < operations.size(); i++) {
-        if (!memcache_get.get(operations[i], read_buffer)) {
+        if (!memcache.get(operations[i], read_buffer)) {
           read_buffer.emplace_back(-1, "");
           miss_ops.push_back(operations[i]);
         }
@@ -189,22 +203,21 @@ class MemcacheWrapper {
     }
   }
 
-  void PollWrite(std::string port, std::string db_port, std::string ans_port) {
+  void PollWrite(std::string port, std::string db_port, std::string ans_port, int interval) {
     WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port, self_addr_);
     WebQueuePull<MemcacheResponse> answers(new zmq::context_t(1), ans_port, self_addr_);
     ResponseMap responses;
-    
     WebQueuePush<DBRequest> db_queue(new zmq::context_t(1));
     db_queue.connect(db_port, self_addr_);
-    WebSubscribe<InvalidRequest> invalid_sub(new zmq::context_t(1), zmq_invalid_port, self_addr_);
 
     MemcacheRequest req;
     MemcacheResponse ans;
-    InvalidRequest invalid_req;
-    MemcachedClient memcache_put;
+    uint64_t last_time = getTimestamp(), cur_time = 0;
     while (true) {
-      if (invalid_sub.poll(invalid_req)) {
-        InvalidCache(invalid_req, memcache_put);
+      cur_time = getTimestamp();
+      if (cur_time - last_time > interval) {
+        write_flag.store(zmq_read_txn_ports.size());
+        last_time = cur_time;
       }
 
       if (answers.dequeue(ans)) {
@@ -282,6 +295,8 @@ class MemcacheWrapper {
       cur_time = getTimestamp();
       if (cur_time - last_time > interval) {
         invalid_pub.push({0, dis(gen), wops, wops_txn});
+        std::cout << "broadcast invalid " << wops.size() << " scala and " << wops_txn.size() 
+                  << " txn" << std::endl;
         wops.clear();
         wops_txn.clear();
         last_time = cur_time;
@@ -316,7 +331,7 @@ class MemcacheWrapper {
   std::vector<std::future<void>> thread_pool_;
   const std::string self_addr_;
   
-  std::atomic<bool> write_flag{false};
+  std::atomic<int> write_flag{0};
   std::atomic<bool> write_txn_flag{false};
 };
 
