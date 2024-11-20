@@ -12,7 +12,7 @@ template <typename T>
 class WebPublish
 {
 public:
-    WebPublish(zmq::context_t* ctx, std::string port="6999", 
+    WebPublish(zmq::context_t* ctx, std::string port="6998", 
         std::string host="127.0.0.1", std::string protocol="tcp"): 
         ctx_(ctx), publish_socket(*ctx_, ZMQ_PUB)
     {
@@ -20,7 +20,7 @@ public:
         std::cout << "ZeroMQ publish thro " << host << ":" << port << std::endl;
     }
 
-    void push(T value) 
+    void push(const T& value) 
     {
         msgpack::sbuffer sbuf;
         msgpack::pack(sbuf, value);
@@ -39,15 +39,16 @@ template <typename T>
 class WebSubscribe
 {
 public:
-    WebSubscribe(zmq::context_t* ctx, std::string port="6999", 
+    WebSubscribe(zmq::context_t* ctx, std::string port="6998", 
         std::string host="127.0.0.1", std::string protocol="tcp"): 
         ctx_(ctx), subscribe_socket(*ctx_, ZMQ_SUB)
     {
         subscribe_socket.connect(protocol + "://" + host + ":" + port);
+        subscribe_socket.setsockopt(ZMQ_SUBSCRIBE, "", 0);
         std::cout << "ZeroMQ subscribe thro " << host << ":" << port << std::endl;
     }
 
-    bool poll(T value) 
+    bool poll(T& value) 
     {
         zmq::message_t message;
         if (!subscribe_socket.recv(&message, ZMQ_DONTWAIT)) {
@@ -82,7 +83,7 @@ public:
         std::cout << "ZeroMQ connecting to " << host << ":" << port << std::endl;
     }
 
-    void enqueue(T value, int idx=0)
+    void enqueue(const T& value, int idx=0)
     {
         idx = idx % push_sockets.size();
         msgpack::sbuffer sbuf;
@@ -147,7 +148,7 @@ public:
 
     ~WebQueue() {}
 
-    void enqueue(T value) {
+    void enqueue(const T& value) {
         push.enqueue(value);
     }
 

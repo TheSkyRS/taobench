@@ -71,7 +71,7 @@ class MemcacheWrapper {
   void Reset() {}
 
  private:
-  static uint64_t getTimestamp() {
+  inline uint64_t getTimestamp() {
     auto now = std::chrono::system_clock::now();
     return std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
   }
@@ -126,7 +126,6 @@ class MemcacheWrapper {
       const auto& operations = req.operations;
       auto& read_buffer = resp.read_buffer;
       
-      // std::cout << "poll read ops " << operations.size() << std::endl;
       resp.operation = operations[0].operation;
       resp.hit_count.read += 1;
       resp.prev_addr = req.prev_addr;
