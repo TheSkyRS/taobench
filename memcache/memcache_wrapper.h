@@ -21,17 +21,11 @@
 
 #define RTHREADS 2
 
-#define ENQUEUE_RESPONSE(resp) \
-    if (responses.find(req.resp_addr) == responses.end()) { \
-        responses[req.resp_addr] = new WebQueuePush<MemcacheResponse>(new zmq::context_t(1)); \
-        responses[req.resp_addr]->connect(req.resp_addr.port, req.resp_addr.addr); \
-    } \
-    resp.prev_addr = req.prev_addr; \
-    responses[req.resp_addr]->enqueue(resp);
-
 namespace benchmark {
 
 class MemcacheWrapper {
+  typedef std::unordered_map<FullAddr, WebQueuePush<MemcacheResponse>*, FullAddrHash> ResponseMap;
+
  public:
   MemcacheWrapper(std::vector<DB*>& dbr, std::vector<DB*>& dbw, std::string self_addr="127.0.0.1"):
     dbr_(dbr), dbw_(dbw), self_addr_(self_addr) {
@@ -43,26 +37,32 @@ class MemcacheWrapper {
 
   void Start() {
     for (size_t i = 0; i < zmq_read_ports.size(); i++) {
-      auto& db_port = zmq_db_ports[i % zmq_db_ports.size()];
-      thread_pool_.push_back(std::async(std::launch::async, 
-        &MemcacheWrapper::PollRead, this, zmq_read_ports[i], db_port
+      auto& db_port = zmq_dbr_ports[i % zmq_dbr_ports.size()];
+      thread_pool_.push_back(std::async(std::launch::async, &MemcacheWrapper::PollRead, 
+        this, zmq_read_ports[i], db_port, zmq_read_rports[i]
       ));
     }
     for (size_t i = 0; i < zmq_read_txn_ports.size(); i++) {
       int j = i + zmq_read_ports.size();
-      auto& db_port = zmq_db_ports[j % zmq_db_ports.size()];
-      thread_pool_.push_back(std::async(std::launch::async, 
-        &MemcacheWrapper::PollReadTxn, this, zmq_read_txn_ports[i], db_port
+      auto& db_port = zmq_dbr_ports[j % zmq_dbr_ports.size()];
+      thread_pool_.push_back(std::async(std::launch::async, &MemcacheWrapper::PollReadTxn, 
+        this, zmq_read_txn_ports[i], db_port, zmq_read_txn_rports[i]
       ));
     }
     for (size_t i = 0; i < zmq_write_ports.size(); i++) {
-      thread_pool_.push_back(std::async(std::launch::async,
-        &MemcacheWrapper::PollWrite, this, zmq_write_ports[i], dbw_[i], 3000
+      auto& db_port = zmq_dbw_ports[i % zmq_dbw_ports.size()];
+      thread_pool_.push_back(std::async(std::launch::async, &MemcacheWrapper::PollWrite, 
+        this, zmq_write_ports[i], db_port, zmq_write_rports[i]
       ));
     }
-    for (size_t i = 0; i < zmq_db_ports.size(); i++) {
-      thread_pool_.push_back(std::async(std::launch::async, 
-        &MemcacheWrapper::DBThread, this, dbr_[i], zmq_db_ports[i]
+    for (size_t i = 0; i < zmq_dbr_ports.size(); i++) {
+      thread_pool_.push_back(std::async(std::launch::async, &MemcacheWrapper::DBRThread, 
+        this, dbr_[i], zmq_dbr_ports[i]
+      ));
+    }
+    for (size_t i = 0; i < zmq_dbw_ports.size(); i++) {
+      thread_pool_.push_back(std::async(std::launch::async, &MemcacheWrapper::DBWThread, 
+        this, dbw_[i], zmq_dbw_ports[i], 3000
       ));
     }
     std::cout << "starting MemcacheWrapper" << std::endl;
@@ -76,48 +76,87 @@ class MemcacheWrapper {
     return std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
   }
 
-  void PollRead(std::string port, std::string db_port) {
+  inline void SendResponse(MemcacheResponse& resp, FullAddr& addr, ResponseMap& responses) {
+    if (responses.find(addr) == responses.end()) {
+      responses[addr] = new WebQueuePush<MemcacheResponse>(new zmq::context_t(1));
+      responses[addr]->connect(addr.port, addr.addr);
+    }
+    responses[addr]->enqueue(resp);
+  }
+
+  inline void InvalidCache(InvalidRequest& req, MemcachedClient& memcache_put) {
+    write_flag.store(true);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    for (const auto& op: req.wops) {
+      memcache_put.invalidate(op);
+    }
+    write_txn_flag.store(true);
+    for (const auto& op: req.wops_txn) {
+      memcache_put.invalidate(op);
+    }
+    write_txn_flag.store(false);
+    write_flag.store(false);
+
+    std::cout << "write back " << req.wops.size() << " scala and " << req.wops_txn.size() 
+              << " txn" << std::endl;
+  }
+
+
+  void PollRead(std::string port, std::string db_port, std::string ans_port) {
     WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port, self_addr_);
-    std::unordered_map<FullAddr, WebQueuePush<MemcacheResponse>*, FullAddrHash> responses;
-    WebQueuePush<uintptr_t> db_queue(new zmq::context_t(1));
-    db_queue.connect(db_port);
+    WebQueuePull<MemcacheResponse> answers(new zmq::context_t(1), ans_port, self_addr_);
+    ResponseMap responses;
+    WebQueuePush<DBRequest> db_queue(new zmq::context_t(1));
+    db_queue.connect(db_port, self_addr_);
 
     MemcacheRequest req;
+    MemcacheResponse ans;
     MemcachedClient memcache_get;
     while (true) {
+      if (answers.dequeue(ans)) {
+        SendResponse(ans, ans.resp_addr, responses);
+      }
+
       if (write_txn_flag.load() || !requests.dequeue(req)) {
         continue;
       }
-      // std::cout << "read from " << req.resp_addr.addr << ":" << req.resp_addr.port << std::endl; 
 
       MemcacheResponse resp;
       resp.timestamp = req.timestamp;
       const auto& operations = req.operations;
       auto& read_buffer = resp.read_buffer;
       
+      // std::cout << "poll read ops " << operations.size() << std::endl;
       resp.operation = operations[0].operation;
       resp.hit_count.read += 1;
+      resp.prev_addr = req.prev_addr;
+      resp.resp_addr = req.resp_addr;
 
       if (memcache_get.get(operations[0], read_buffer)) {
         resp.s = Status::kOK;
         resp.hit_count.hit += 1;
-        ENQUEUE_RESPONSE(resp);
+        SendResponse(resp, resp.resp_addr, responses);
       } else {
-        auto* db_req = new DBRequest{resp, operations, req.resp_addr, req.prev_addr, true, false};
-        db_queue.enqueue(reinterpret_cast<uintptr_t>(db_req));
+        db_queue.enqueue({resp, operations, {self_addr_, ans_port}, true, false});
       }
     }
   }
 
-  void PollReadTxn(std::string port, std::string db_port) {
+  void PollReadTxn(std::string port, std::string db_port, std::string ans_port) {
     WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port, self_addr_);
-    std::unordered_map<FullAddr, WebQueuePush<MemcacheResponse>*, FullAddrHash> responses;
-    WebQueuePush<uintptr_t> db_queue(new zmq::context_t(1));
-    db_queue.connect(db_port);
+    WebQueuePull<MemcacheResponse> answers(new zmq::context_t(1), ans_port, self_addr_);
+    ResponseMap responses;
+    WebQueuePush<DBRequest> db_queue(new zmq::context_t(1));
+    db_queue.connect(db_port, self_addr_);
 
     MemcacheRequest req;
+    MemcacheResponse ans;
     MemcachedClient memcache_get;
     while (true) {
+      if (answers.dequeue(ans)) {
+        SendResponse(ans, ans.resp_addr, responses);
+      }
+
       if (write_flag.load() || !requests.dequeue(req)) {
         continue;
       }
@@ -130,6 +169,8 @@ class MemcacheWrapper {
       resp.operation = Operation::READTRANSACTION;
       read_buffer.reserve(operations.size());
       resp.hit_count.read += operations.size();
+      resp.prev_addr = req.prev_addr;
+      resp.resp_addr = req.resp_addr;
 
       std::vector<DB::DB_Operation> miss_ops;
       for (size_t i = 0; i < operations.size(); i++) {
@@ -141,85 +182,61 @@ class MemcacheWrapper {
 
       if (miss_ops.empty()) {
         resp.s = Status::kOK; 
-        ENQUEUE_RESPONSE(resp);
+        SendResponse(resp, resp.resp_addr, responses);
       } else {
         resp.hit_count.hit += operations.size() - miss_ops.size();
-        auto* db_req = new DBRequest{resp, miss_ops, req.resp_addr, req.prev_addr, true, true};
-        db_queue.enqueue(reinterpret_cast<uintptr_t>(db_req));
+        db_queue.enqueue({resp, miss_ops, {self_addr_, ans_port}, true, true});
       }
     }
   }
 
-  void PollWrite(std::string port, DB *db, int interval) {
+  void PollWrite(std::string port, std::string db_port, std::string ans_port) {
     WebQueuePull<MemcacheRequest> requests(new zmq::context_t(1), port, self_addr_);
-    requests.setup(0);
-    std::unordered_map<FullAddr, WebQueuePush<MemcacheResponse>*, FullAddrHash> responses;
+    WebQueuePull<MemcacheResponse> answers(new zmq::context_t(1), ans_port, self_addr_);
+    ResponseMap responses;
+    
+    WebQueuePush<DBRequest> db_queue(new zmq::context_t(1));
+    db_queue.connect(db_port, self_addr_);
+    WebSubscribe<InvalidRequest> invalid_sub(new zmq::context_t(1), zmq_invalid_port, self_addr_);
 
     MemcacheRequest req;
+    MemcacheResponse ans;
+    InvalidRequest invalid_req;
     MemcachedClient memcache_put;
-
-    uint64_t last_time = getTimestamp(), cur_time = 0;
-    std::vector<DB::DB_Operation> wops, wops_txn;
     while (true) {
-      cur_time = getTimestamp();
-      if (cur_time - last_time > interval) {
-        write_flag.store(true);
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        for (const auto& op: wops) {
-          memcache_put.invalidate(op);
-        }
-        write_txn_flag.store(true);
-        for (const auto& op: wops_txn) {
-          memcache_put.invalidate(op);
-        }
-        write_txn_flag.store(false);
-        write_flag.store(false);
+      if (invalid_sub.poll(invalid_req)) {
+        InvalidCache(invalid_req, memcache_put);
+      }
 
-        std::cout << "write back " << wops.size() << " scala and " << wops_txn.size() << " txn" << std::endl;
-        wops.clear();
-        wops_txn.clear();
-        last_time = cur_time;
+      if (answers.dequeue(ans)) {
+        SendResponse(ans, ans.resp_addr, responses);
       }
 
       if (!requests.dequeue(req)) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
         continue;
       }
       
       MemcacheResponse resp;
       resp.timestamp = req.timestamp;
+      resp.prev_addr = req.prev_addr;
+      resp.resp_addr = req.resp_addr;
       const auto& operations = req.operations;
-      auto& read_buffer = resp.read_buffer;
 
-      if (req.txn_op) {
-        resp.operation = Operation::WRITETRANSACTION;
-        resp.s = db->ExecuteTransaction(operations, read_buffer, false);
-        if (resp.s == Status::kOK) {
-          wops_txn.insert(wops_txn.end(), operations.begin(), operations.end());
-        }
-      } else {
-        resp.operation = operations[0].operation;
-        resp.s = db->Execute(operations[0], read_buffer);
-        if (resp.s == Status::kOK) {
-          wops.push_back(operations[0]);
-        }
-      }
-      ENQUEUE_RESPONSE(resp); 
+      db_queue.enqueue({resp, operations, {self_addr_, ans_port}, req.read_only, req.txn_op});
     }
   }
 
-  void DBThread(DB *db, std::string db_port) {
-    std::unordered_map<FullAddr, WebQueuePush<MemcacheResponse>*, FullAddrHash> responses;
-    WebQueuePull<uintptr_t> db_queue(new zmq::context_t(1), db_port);
+  void DBRThread(DB *db, std::string db_port) {
+    ResponseMap responses;
+    WebQueuePull<DBRequest> db_queue(new zmq::context_t(1), db_port);
     
-    uintptr_t req_ptr;
+    DBRequest req;
     MemcachedClient memcache_put;
     while (true) {
-      if (!db_queue.dequeue(req_ptr)) {
+      if (!db_queue.dequeue(req)) {
         continue;
       }
 
-      DBRequest& req = *reinterpret_cast<DBRequest*>(req_ptr);
       MemcacheResponse& resp = req.resp;
       const auto& operations = req.operations;
       auto& read_buffer = resp.read_buffer;
@@ -246,8 +263,53 @@ class MemcacheWrapper {
           memcache_put.put(operations[0], read_buffer[0]);
         }
       }
-      ENQUEUE_RESPONSE(resp);  
-      delete reinterpret_cast<DBRequest*>(req_ptr);
+      SendResponse(resp, resp.resp_addr, responses);  
+    }
+  }
+
+  void DBWThread(DB *db, std::string db_port, int interval) {
+    ResponseMap responses;
+    WebQueuePull<DBRequest> db_queue(new zmq::context_t(1), db_port, self_addr_);
+    WebPublish<InvalidRequest> invalid_pub(new zmq::context_t(1), zmq_invalid_port, self_addr_);
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, 99);
+
+    DBRequest req;
+    uint64_t last_time = getTimestamp(), cur_time = 0;
+    std::vector<DB::DB_Operation> wops, wops_txn;
+    while (true) {
+      cur_time = getTimestamp();
+      if (cur_time - last_time > interval) {
+        invalid_pub.push({0, dis(gen), wops, wops_txn});
+        wops.clear();
+        wops_txn.clear();
+        last_time = cur_time;
+      }
+
+      if (!db_queue.dequeue(req)) {
+        continue;
+      }
+
+      MemcacheResponse& resp = req.resp;
+      const auto& operations = req.operations;
+      auto& read_buffer = resp.read_buffer;
+
+      if (req.txn_op) {
+        resp.operation = Operation::WRITETRANSACTION;
+        resp.s = db->ExecuteTransaction(operations, read_buffer, false);
+        if (resp.s == Status::kOK) {
+          wops_txn.insert(wops_txn.end(), operations.begin(), operations.end());
+        }
+      } else {
+        resp.operation = operations[0].operation;
+        resp.s = db->Execute(operations[0], read_buffer);
+        if (resp.s == Status::kOK) {
+          wops.push_back(operations[0]);
+        }
+      }
+      SendResponse(resp, req.server_addr, responses); 
     }
   }
 

@@ -9,6 +9,64 @@
 #include <vector>
 
 template <typename T>
+class WebPublish
+{
+public:
+    WebPublish(zmq::context_t* ctx, std::string port="6999", 
+        std::string host="127.0.0.1", std::string protocol="tcp"): 
+        ctx_(ctx), publish_socket(*ctx_, ZMQ_PUB)
+    {
+        publish_socket.bind(protocol + "://" + host + ":" + port);
+        std::cout << "ZeroMQ publish thro " << host << ":" << port << std::endl;
+    }
+
+    void push(T value) 
+    {
+        msgpack::sbuffer sbuf;
+        msgpack::pack(sbuf, value);
+
+        zmq::message_t message(sbuf.size());
+        memcpy(message.data(), sbuf.data(), sbuf.size());
+        publish_socket.send(message);
+    }
+
+private:
+    zmq::context_t* ctx_;
+    zmq::socket_t publish_socket;
+};
+
+template <typename T>
+class WebSubscribe
+{
+public:
+    WebSubscribe(zmq::context_t* ctx, std::string port="6999", 
+        std::string host="127.0.0.1", std::string protocol="tcp"): 
+        ctx_(ctx), subscribe_socket(*ctx_, ZMQ_SUB)
+    {
+        subscribe_socket.connect(protocol + "://" + host + ":" + port);
+        std::cout << "ZeroMQ subscribe thro " << host << ":" << port << std::endl;
+    }
+
+    bool poll(T value) 
+    {
+        zmq::message_t message;
+        if (!subscribe_socket.recv(&message, ZMQ_DONTWAIT)) {
+            return false;
+        };
+        msgpack::object_handle handle = msgpack::unpack(
+            static_cast<const char*>(message.data()), message.size()
+        );
+        msgpack::object deserialized = handle.get();
+        deserialized.convert(value);
+        return true;
+    }
+
+private:
+    zmq::context_t* ctx_;
+    zmq::socket_t subscribe_socket;
+};
+
+template <typename T>
 class WebQueuePush
 {
 public:
@@ -16,7 +74,7 @@ public:
 
     ~WebQueuePush() {}
 
-    void connect(std::string port="6000", std::string host="127.0.0.1", 
+    void connect(std::string port="6999", std::string host="127.0.0.1", 
         std::string protocol="tcp")
     {
         push_sockets.push_back(zmq::socket_t(*ctx_, ZMQ_PUSH));
@@ -43,15 +101,16 @@ template <typename T>
 class WebQueuePull
 {
 public:
-    WebQueuePull(zmq::context_t* ctx, std::string port="6000", 
+    WebQueuePull(zmq::context_t* ctx, std::string port="6999", 
         std::string host="127.0.0.1", std::string protocol="tcp"): 
-        ctx_(ctx), pull_socket(*ctx_, ZMQ_PULL), port_(port)
+        ctx_(ctx), pull_socket(*ctx_, ZMQ_PULL)
     {
         pull_socket.bind(protocol + "://" + host + ":" + port);
         std::cout << "ZeroMQ listening on " << host << ":" << port << std::endl;
+        setup();
     }
 
-    void setup(int timeout=-1, int capacity=1000) {
+    void setup(int timeout=0, int capacity=1000) {
         pull_socket.setsockopt(ZMQ_RCVTIMEO, &timeout, sizeof(timeout));
         pull_socket.setsockopt(ZMQ_SNDHWM, &capacity, sizeof(capacity));
     }
@@ -74,15 +133,13 @@ public:
 private:
     zmq::context_t* ctx_;
     zmq::socket_t pull_socket;
-
-    std::string port_;
 };
 
 template <typename T>
 class WebQueue
 {
 public:
-    WebQueue(std::string port="6000", int timeout=-1):
+    WebQueue(std::string port="6999", int timeout=-1):
         push(new zmq::context_t(1)), pull(new zmq::context_t(1), port, timeout) 
     {
         push.connect(port);

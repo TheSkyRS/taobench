@@ -49,7 +49,7 @@ int main(int argc, char* argv[]) {
     ports.insert(ports.end(), zmq_write_ports.begin(), zmq_write_ports.end());
 
     for (int i=0; i < zmq_router_ports.size(); i++) {
-        router.set_rule(zmq_router_ports[i], zmq_router_resp_ports[i], 
+        router.set_rule(zmq_router_ports[i], zmq_router_rports[i], 
                         hosts, ports, "tcp", new RandomFunc());
     }
     std::this_thread::sleep_for(std::chrono::hours(1000000));

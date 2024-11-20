@@ -32,10 +32,10 @@ MemcacheWrapper *DBFactory::memcache_ = nullptr;
 MemcacheWrapper *DBFactory::GetMemcache(utils::Properties *props) {
   if (memcache_ == nullptr) {
     std::vector<DB*> dbr, dbw;
-    for (int i = 0; i < zmq_db_ports.size(); i++) {
+    for (int i = 0; i < zmq_dbr_ports.size(); i++) {
       dbr.push_back(CreateRawDB(props));
     }
-    for (int i = 0; i < zmq_write_ports.size(); i++) {
+    for (int i = 0; i < zmq_dbw_ports.size(); i++) {
       dbw.push_back(CreateRawDB(props));
     }
     std::string self_addr = props->GetProperty("self_addr", "127.0.0.1");

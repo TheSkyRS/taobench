@@ -35,8 +35,9 @@ struct MemcacheResponse {
   Operation operation = Operation::INVALID;
   Status s = Status::kOK;
   HitCount hit_count;
+  FullAddr resp_addr;
   FullAddr prev_addr;
-  MSGPACK_DEFINE(timestamp, read_buffer, operation, s, hit_count, prev_addr);
+  MSGPACK_DEFINE(timestamp, read_buffer, operation, s, hit_count, resp_addr, prev_addr);
 };
 
 struct MemcacheRequest {
@@ -52,20 +53,33 @@ struct MemcacheRequest {
 struct DBRequest {
   MemcacheResponse resp;
   std::vector<DB::DB_Operation> operations;
-  FullAddr resp_addr;
-  FullAddr prev_addr;
+  FullAddr server_addr;
   bool read_only;
   bool txn_op;
-  MSGPACK_DEFINE(resp, operations, resp_addr, prev_addr, read_only, txn_op);
+  MSGPACK_DEFINE(resp, operations, server_addr, read_only, txn_op);
+};
+
+struct InvalidRequest {
+  int shard_id = 0;
+  int hash_id = 0;
+  std::vector<DB::DB_Operation> wops;
+  std::vector<DB::DB_Operation> wops_txn;
+  MSGPACK_DEFINE(shard_id, hash_id, wops, wops_txn);
 };
 
 const std::vector<std::string> zmq_router_ports = {"6000", "6002"};
-const std::vector<std::string> zmq_router_resp_ports = {"6001", "6003"};
+const std::vector<std::string> zmq_router_rports = {"6001", "6003"};
 
-const std::vector<std::string> zmq_read_ports = {"6100", "6101", "6102", "6103"};
-const std::vector<std::string> zmq_read_txn_ports = {"6200", "6201"};
+const std::vector<std::string> zmq_read_ports = {"6100", "6102", "6104", "6106"};
+const std::vector<std::string> zmq_read_rports = {"6101", "6103", "6105", "6107"};
+const std::vector<std::string> zmq_read_txn_ports = {"6200", "6202"};
+const std::vector<std::string> zmq_read_txn_rports = {"6201", "6203"};
 const std::vector<std::string> zmq_write_ports = {"6300"};
-const std::vector<std::string> zmq_db_ports = {"6400", "6401"};
+const std::vector<std::string> zmq_write_rports = {"6301"};
+
+const std::vector<std::string> zmq_dbr_ports = {"6400", "6401"};
+const std::vector<std::string> zmq_dbw_ports = {"6500"};
+const std::string zmq_invalid_port = "6600";
 
 } // benchmark
 
