@@ -10,6 +10,12 @@ namespace benchmark {
 struct FullAddr {
   std::string addr;
   std::string port;
+
+  FullAddr() = default;
+
+  FullAddr(const std::string& addr_, const std::string& port_):
+          addr(addr_), port(port_) {};
+
   MSGPACK_DEFINE(addr, port);
 
   bool operator==(const FullAddr& r) const {
@@ -29,37 +35,21 @@ struct HitCount {
   MSGPACK_DEFINE(hit, read);
 };
 
-struct MemcacheResponse {
-  uint64_t timestamp = 0;
+struct MemcacheData {
+  uint64_t timestamp;
+  std::vector<FullAddr> resp_addr;
+  std::vector<DB::DB_Operation> operations;
   std::vector<DB::TimestampValue> read_buffer;
-  Operation operation = Operation::INVALID;
+  bool read_only;
+  bool txn_op;
   Status s = Status::kOK;
   HitCount hit_count;
-  FullAddr resp_addr;
-  FullAddr prev_addr;
-  MSGPACK_DEFINE(timestamp, read_buffer, operation, s, hit_count, resp_addr, prev_addr);
+  std::vector<size_t> miss_ops;
+  MSGPACK_DEFINE(timestamp, resp_addr, operations, read_buffer, read_only, txn_op, 
+                s, hit_count, miss_ops);
 };
 
-struct MemcacheRequest {
-  uint64_t timestamp;
-  std::vector<DB::DB_Operation> operations;
-  FullAddr resp_addr;
-  FullAddr prev_addr;
-  bool read_only;
-  bool txn_op;
-  MSGPACK_DEFINE(timestamp, operations, resp_addr, prev_addr, read_only, txn_op);
-};
-
-struct DBRequest {
-  MemcacheResponse resp;
-  std::vector<DB::DB_Operation> operations;
-  FullAddr server_addr;
-  bool read_only;
-  bool txn_op;
-  MSGPACK_DEFINE(resp, operations, server_addr, read_only, txn_op);
-};
-
-struct InvalidRequest {
+struct InvalidCmd {
   int shard_id = 0;
   int hash_id = 0;
   std::vector<DB::DB_Operation> wops;

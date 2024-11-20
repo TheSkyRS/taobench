@@ -15,7 +15,7 @@ public:
         write_ofs(read_txn_ofs + zmq_read_txn_ports.size()), 
         total_size(write_ofs + zmq_write_ports.size()) {}
 
-    int index(const MemcacheRequest& value) override {
+    int index(const MemcacheData& value) override {
         if (value.read_only) {
             if (!value.txn_op) {
                 return (dist(gen) % (read_txn_ofs - read_ofs)) + read_ofs;
