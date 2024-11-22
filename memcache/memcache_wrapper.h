@@ -109,8 +109,8 @@ class MemcacheServer {
       memcache.invalidate(op);
     }
     write_txn_flag.store(false);
-    std::cout << "write back " << full_req.wops.size() << " scala and " << full_req.wops_txn.size() 
-              << " txn" << std::endl;
+    std::cout << "write back(" << idx << ") " << full_req.wops.size() << " scala and " 
+              << full_req.wops_txn.size() << " txn" << std::endl;
   }
 
 

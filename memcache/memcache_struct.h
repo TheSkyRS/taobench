@@ -60,12 +60,37 @@ struct InvalidCmd {
 const std::vector<std::string> zmq_router_ports = {"6000", "6002"};
 const std::vector<std::string> zmq_router_rports = {"6001", "6003"};
 
-const std::vector<std::string> zmq_read_ports = {"6100", "6102", "6104", "6106"};
-const std::vector<std::string> zmq_read_rports = {"6101", "6103", "6105", "6107"};
-const std::vector<std::string> zmq_read_txn_ports = {"6200", "6202"};
-const std::vector<std::string> zmq_read_txn_rports = {"6201", "6203"};
-const std::vector<std::string> zmq_write_ports = {"6300"};
-const std::vector<std::string> zmq_write_rports = {"6301"};
+#ifdef CACHE_ID
+  #if CACHE_ID == 0
+    const std::vector<std::string> zmq_read_ports = {"6100", "6102"};
+    const std::vector<std::string> zmq_read_rports = {"6101", "6103"};
+    const std::vector<std::string> zmq_read_txn_ports = {"6200"};
+    const std::vector<std::string> zmq_read_txn_rports = {"6201"};
+    const std::vector<std::string> zmq_write_ports = {"6300"};
+    const std::vector<std::string> zmq_write_rports = {"6301"};
+  #elif CACHE_ID == 1
+    const std::vector<std::string> zmq_read_ports = {"6104", "6106"};
+    const std::vector<std::string> zmq_read_rports = {"6105", "6107"};
+    const std::vector<std::string> zmq_read_txn_ports = {"6202"};
+    const std::vector<std::string> zmq_read_txn_rports = {"6203"};
+    const std::vector<std::string> zmq_write_ports = {"6302"};
+    const std::vector<std::string> zmq_write_rports = {"6303"};
+  #else
+    const std::vector<std::string> zmq_read_ports = {"6100", "6102", "6104", "6106"};
+    const std::vector<std::string> zmq_read_rports = {"6101", "6103", "6105", "6107"};
+    const std::vector<std::string> zmq_read_txn_ports = {"6200", "6202"};
+    const std::vector<std::string> zmq_read_txn_rports = {"6201", "6203"};
+    const std::vector<std::string> zmq_write_ports = {"6300", "6302"};
+    const std::vector<std::string> zmq_write_rports = {"6301", "6303"};
+  #endif
+#else
+  const std::vector<std::string> zmq_read_ports = {"6100", "6102", "6104", "6106"};
+  const std::vector<std::string> zmq_read_rports = {"6101", "6103", "6105", "6107"};
+  const std::vector<std::string> zmq_read_txn_ports = {"6200", "6202"};
+  const std::vector<std::string> zmq_read_txn_rports = {"6201", "6203"};
+  const std::vector<std::string> zmq_write_ports = {"6300"};
+  const std::vector<std::string> zmq_write_rports = {"6301"};
+#endif
 
 const std::vector<std::string> zmq_dbr_ports = {"6400", "6401"};
 const std::vector<std::string> zmq_dbw_ports = {"6500"};
