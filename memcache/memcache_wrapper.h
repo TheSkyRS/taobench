@@ -23,49 +23,52 @@
 
 namespace benchmark {
 
-class MemcacheWrapper {
+class MemcacheServer {
   typedef std::unordered_map<FullAddr, WebQueuePush<MemcacheData>*, FullAddrHash> ResponseMap;
 
  public:
-  MemcacheWrapper(std::vector<DB*>& dbr, std::vector<DB*>& dbw, std::string self_addr="127.0.0.1"):
-    dbr_(dbr), dbw_(dbw), self_addr_(self_addr) {
-    std::cout << "creating MemcacheWrapper" << std::endl;
+  MemcacheServer(std::string self_addr): self_addr_(self_addr) {
+    std::cout << "creating MemcacheServer" << std::endl;
   }
-  ~MemcacheWrapper() {
+  ~MemcacheServer() {
     Reset();
   }
 
-  void Start() {
-    for (size_t i = 0; i < zmq_read_ports.size(); i++) {
-      auto& db_port = zmq_dbr_ports[i % zmq_dbr_ports.size()];
-      thread_pool_.push_back(std::async(std::launch::async, &MemcacheWrapper::PollRead, 
-        this, zmq_read_ports[i], db_port, zmq_read_rports[i]
-      ));
-    }
-    for (size_t i = 0; i < zmq_read_txn_ports.size(); i++) {
-      int j = i + zmq_read_ports.size();
-      auto& db_port = zmq_dbr_ports[j % zmq_dbr_ports.size()];
-      thread_pool_.push_back(std::async(std::launch::async, &MemcacheWrapper::PollReadTxn, 
-        this, zmq_read_txn_ports[i], db_port, zmq_read_txn_rports[i], i
-      ));
-    }
-    for (size_t i = 0; i < zmq_write_ports.size(); i++) {
-      auto& db_port = zmq_dbw_ports[i % zmq_dbw_ports.size()];
-      thread_pool_.push_back(std::async(std::launch::async, &MemcacheWrapper::PollWrite, 
-        this, zmq_write_ports[i], db_port, zmq_write_rports[i], 3000
-      ));
-    }
+  void StartDB(std::vector<DB*>& dbr, std::vector<DB*>& dbw) {
     for (size_t i = 0; i < zmq_dbr_ports.size(); i++) {
-      thread_pool_.push_back(std::async(std::launch::async, &MemcacheWrapper::DBRThread, 
-        this, dbr_[i], zmq_dbr_ports[i]
+      thread_pool_.push_back(std::async(std::launch::async, &MemcacheServer::DBRThread, 
+        this, dbr[i], zmq_dbr_ports[i]
       ));
     }
     for (size_t i = 0; i < zmq_dbw_ports.size(); i++) {
-      thread_pool_.push_back(std::async(std::launch::async, &MemcacheWrapper::DBWThread, 
-        this, dbw_[i], zmq_dbw_ports[i], 1000
+      thread_pool_.push_back(std::async(std::launch::async, &MemcacheServer::DBWThread, 
+        this, dbw[i], zmq_dbw_ports[i], 1000
       ));
     }
-    std::cout << "starting MemcacheWrapper" << std::endl;
+    std::cout << "Starting DBServer" << std::endl;
+  }
+
+  void StartMemcache(int cache_idx, int num_cache) {
+    for (size_t i = cache_idx; i < zmq_read_ports.size(); i += num_cache) {
+      auto& db_port = zmq_dbr_ports[i % zmq_dbr_ports.size()];
+      thread_pool_.push_back(std::async(std::launch::async, &MemcacheServer::PollRead, 
+        this, zmq_read_ports[i], db_port, zmq_read_rports[i]
+      ));
+    }
+    for (size_t i = cache_idx; i < zmq_read_txn_ports.size(); i += num_cache) {
+      int j = i + zmq_read_ports.size();
+      auto& db_port = zmq_dbr_ports[j % zmq_dbr_ports.size()];
+      thread_pool_.push_back(std::async(std::launch::async, &MemcacheServer::PollReadTxn, 
+        this, zmq_read_txn_ports[i], db_port, zmq_read_txn_rports[i], i
+      ));
+    }
+    for (size_t i = cache_idx; i < zmq_write_ports.size(); i += num_cache) {
+      auto& db_port = zmq_dbw_ports[i % zmq_dbw_ports.size()];
+      thread_pool_.push_back(std::async(std::launch::async, &MemcacheServer::PollWrite, 
+        this, zmq_write_ports[i], db_port, zmq_write_rports[i], 3000
+      ));
+    }
+    std::cout << "Starting MemcacheServer" << std::endl;
   }
 
   void Reset() {}
@@ -233,10 +236,9 @@ class MemcacheWrapper {
 
   void DBRThread(DB *db, std::string db_port) {
     ResponseMap responses;
-    WebQueuePull<MemcacheData> db_queue(new zmq::context_t(1), db_port);
+    WebQueuePull<MemcacheData> db_queue(new zmq::context_t(1), db_port, self_addr_);
     
     MemcacheData data;
-    MemcachedClient memcache;
     const auto& operations = data.operations;
     auto& read_buffer = data.read_buffer;
     auto& miss_ops = data.miss_ops;
@@ -312,7 +314,6 @@ class MemcacheWrapper {
     }
   }
 
-  std::vector<DB*> dbr_, dbw_;
   std::vector<std::future<void>> thread_pool_;
   const std::string self_addr_;
   

@@ -28,19 +28,30 @@ DB *DBFactory::CreateDB(utils::Properties *props, Measurements *measurements,
   return nullptr;
 }
 
-MemcacheWrapper *DBFactory::memcache_ = nullptr;
-MemcacheWrapper *DBFactory::GetMemcache(utils::Properties *props) {
+MemcacheServer *DBFactory::memcache_ = nullptr;
+MemcacheServer *DBFactory::GetMemcacheServer(utils::Properties *props) {
   if (memcache_ == nullptr) {
-    std::vector<DB*> dbr, dbw;
-    for (int i = 0; i < zmq_dbr_ports.size(); i++) {
-      dbr.push_back(CreateRawDB(props));
-    }
-    for (int i = 0; i < zmq_dbw_ports.size(); i++) {
-      dbw.push_back(CreateRawDB(props));
-    }
     std::string self_addr = props->GetProperty("self_addr", "127.0.0.1");
-    memcache_ = new MemcacheWrapper(dbr, dbw, self_addr);
-    memcache_->Start();
+    std::string server_type = props->GetProperty("server_type", "mix");
+    memcache_ = new MemcacheServer(self_addr);
+
+    if (server_type == "mix" || server_type == "db") {
+      std::vector<DB*> dbr, dbw;
+      for (int i = 0; i < zmq_dbr_ports.size(); i++) {
+        dbr.push_back(DBFactory::CreateRawDB(props));
+      }
+      for (int i = 0; i < zmq_dbw_ports.size(); i++) {
+        dbw.push_back(DBFactory::CreateRawDB(props));
+      }
+      memcache_->StartDB(dbr, dbw);
+    }
+    
+    if (server_type == "mix" || server_type == "cache") {
+      int cache_idx = std::stoi(props->GetProperty("cache_idx", "0"));
+      int num_cache = std::stoi(props->GetProperty("num_cache", "1"));
+      assert(cache_idx >= 0 && num_cache > 0);
+      memcache_->StartMemcache(cache_idx, num_cache);
+    }
   }
   return memcache_;
 }

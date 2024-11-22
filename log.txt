@@ -2,7 +2,7 @@ Scanning dependencies of target taobench
 [  7%] Building CXX object CMakeFiles/taobench.dir/src/benchmark.cc.o
 In file included from /local/taobench/src/db_factory.h:7,
                  from /local/taobench/src/benchmark.cc:18:
-/local/taobench/memcache/memcache_wrapper.h: In member function ‘void benchmark::MemcacheWrapper::PollRead(std::string, std::string)’:
+/local/taobench/memcache/memcache_wrapper.h: In member function ‘void benchmark::MemcacheServer::PollRead(std::string, std::string)’:
 /local/taobench/memcache/memcache_wrapper.h:81:67: error: use of deleted function ‘std::unordered_map<_Key, _Tp, _Hash, _Pred, _Alloc>::unordered_map() [with _Key = benchmark::FullAddr; _Tp = WebQueuePush<benchmark::MemcacheResponse>*; _Hash = std::hash<benchmark::FullAddr>; _Pred = std::equal_to<benchmark::FullAddr>; _Alloc = std::allocator<std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*> >]’
    81 |     std::unordered_map<FullAddr, WebQueuePush<MemcacheResponse>*> responses;
       |                                                                   ^~~~~~~~~
@@ -141,15 +141,15 @@ In file included from /usr/include/c++/11/bits/hashtable.h:36,
       |               ^~~~~~~~~~~~~~~~~~~~~~~~~~~
 In file included from /local/taobench/src/db_factory.h:7,
                  from /local/taobench/src/benchmark.cc:18:
-/local/taobench/memcache/memcache_wrapper.h: In member function ‘void benchmark::MemcacheWrapper::PollReadTxn(std::string, std::string)’:
+/local/taobench/memcache/memcache_wrapper.h: In member function ‘void benchmark::MemcacheServer::PollReadTxn(std::string, std::string)’:
 /local/taobench/memcache/memcache_wrapper.h:114:67: error: use of deleted function ‘std::unordered_map<_Key, _Tp, _Hash, _Pred, _Alloc>::unordered_map() [with _Key = benchmark::FullAddr; _Tp = WebQueuePush<benchmark::MemcacheResponse>*; _Hash = std::hash<benchmark::FullAddr>; _Pred = std::equal_to<benchmark::FullAddr>; _Alloc = std::allocator<std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*> >]’
   114 |     std::unordered_map<FullAddr, WebQueuePush<MemcacheResponse>*> responses;
       |                                                                   ^~~~~~~~~
-/local/taobench/memcache/memcache_wrapper.h: In member function ‘void benchmark::MemcacheWrapper::PollWrite(std::string, benchmark::DB*, int)’:
+/local/taobench/memcache/memcache_wrapper.h: In member function ‘void benchmark::MemcacheServer::PollWrite(std::string, benchmark::DB*, int)’:
 /local/taobench/memcache/memcache_wrapper.h:156:67: error: use of deleted function ‘std::unordered_map<_Key, _Tp, _Hash, _Pred, _Alloc>::unordered_map() [with _Key = benchmark::FullAddr; _Tp = WebQueuePush<benchmark::MemcacheResponse>*; _Hash = std::hash<benchmark::FullAddr>; _Pred = std::equal_to<benchmark::FullAddr>; _Alloc = std::allocator<std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*> >]’
   156 |     std::unordered_map<FullAddr, WebQueuePush<MemcacheResponse>*> responses;
       |                                                                   ^~~~~~~~~
-/local/taobench/memcache/memcache_wrapper.h: In member function ‘void benchmark::MemcacheWrapper::DBThread(benchmark::DB*, std::string)’:
+/local/taobench/memcache/memcache_wrapper.h: In member function ‘void benchmark::MemcacheServer::DBThread(benchmark::DB*, std::string)’:
 /local/taobench/memcache/memcache_wrapper.h:212:67: error: use of deleted function ‘std::unordered_map<_Key, _Tp, _Hash, _Pred, _Alloc>::unordered_map() [with _Key = benchmark::FullAddr; _Tp = WebQueuePush<benchmark::MemcacheResponse>*; _Hash = std::hash<benchmark::FullAddr>; _Pred = std::equal_to<benchmark::FullAddr>; _Alloc = std::allocator<std::pair<const benchmark::FullAddr, WebQueuePush<benchmark::MemcacheResponse>*> >]’
   212 |     std::unordered_map<FullAddr, WebQueuePush<MemcacheResponse>*> responses;
       |                                                                   ^~~~~~~~~

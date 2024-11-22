@@ -19,11 +19,11 @@ class DBFactory {
   static DB *CreateDB(utils::Properties *props, Measurements *measurements, 
                       bool memcache=false, int tid=0);
   static DB *CreateRawDB(utils::Properties *props);
-  static MemcacheWrapper *GetMemcache(utils::Properties *props);
+  static MemcacheServer *GetMemcacheServer(utils::Properties *props);
   
  private:
   static std::map<std::string, DBCreator> &Registry();
-  static MemcacheWrapper *memcache_;
+  static MemcacheServer *memcache_;
 };
 
 } // benchmark

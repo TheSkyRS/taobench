@@ -141,6 +141,33 @@ void ParseCommandLine(int argc, const char *argv[], benchmark::utils::Properties
       }
       props.SetProperty("self_addr", argv[argindex]);
       argindex++;
+    } else if (strcmp(argv[argindex], "-server-type") == 0) {
+      argindex++;
+      if (argindex >= argc) {
+        UsageMessage(argv[0]);
+        std::cerr << "Missing argument value for -server-type" << std::endl;
+        exit(0);
+      }
+      props.SetProperty("server_type", argv[argindex]);
+      argindex++;
+    } else if (strcmp(argv[argindex], "-cache-idx") == 0) {
+      argindex++;
+      if (argindex >= argc) {
+        UsageMessage(argv[0]);
+        std::cerr << "Missing argument value for -cache-idx" << std::endl;
+        exit(0);
+      }
+      props.SetProperty("cache_idx", argv[argindex]);
+      argindex++;
+    } else if (strcmp(argv[argindex], "-num-cache") == 0) {
+      argindex++;
+      if (argindex >= argc) {
+        UsageMessage(argv[0]);
+        std::cerr << "Missing argument value for -num-cache" << std::endl;
+        exit(0);
+      }
+      props.SetProperty("num_cache", argv[argindex]);
+      argindex++;
     } else if (strcmp(argv[argindex], "-run") == 0 || strcmp(argv[argindex], "-t") == 0) {
       argindex++;
       props.SetProperty("run", "true");
@@ -535,10 +562,10 @@ int main(const int argc, const char *argv[]) {
       if (mode == "frontend") {
         RunTransactions(props);
       } else if (mode == "backend") {
-        benchmark::DBFactory::GetMemcache(&props);
+        benchmark::DBFactory::GetMemcacheServer(&props);
         std::this_thread::sleep_for(std::chrono::hours(1000000));
       } else if (mode == "mix") {
-        benchmark::DBFactory::GetMemcache(&props);
+        benchmark::DBFactory::GetMemcacheServer(&props);
         RunTransactions(props);
       } else {
         std::cerr << "Unknown running mode!" << std::endl;
