@@ -57,8 +57,8 @@ struct InvalidCmd {
   MSGPACK_DEFINE(shard_id, hash_id, wops, wops_txn);
 };
 
-const std::vector<std::string> zmq_router_ports = {"6000", "6002"};
-const std::vector<std::string> zmq_router_rports = {"6001", "6003"};
+const std::vector<std::string> zmq_router_ports = {"6000", "6002", "6004", "6006"};
+const std::vector<std::string> zmq_router_rports = {"6001", "6003", "6005", "6007"};
 
 const std::vector<std::string> zmq_read_ports = {"6100", "6102", "6104", "6106"};
 const std::vector<std::string> zmq_read_rports = {"6101", "6103", "6105", "6107"};

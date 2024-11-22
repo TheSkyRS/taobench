@@ -156,7 +156,7 @@ class MemcacheServer {
     WebQueuePull<MemcacheData> answers(new zmq::context_t(1), ans_port, self_addr_);
     ResponseMap responses;
 
-    WebSubscribe<InvalidCmd> invalid_sub(new zmq::context_t(1), zmq_invalid_port, self_addr_);
+    WebSubscribe<InvalidCmd> invalid_sub(new zmq::context_t(1), zmq_invalid_port, db_addr_);
     WebQueuePush<MemcacheData> db_queue(new zmq::context_t(1));
     db_queue.connect(db_port, db_addr_);
 

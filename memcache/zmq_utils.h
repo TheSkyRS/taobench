@@ -111,7 +111,7 @@ public:
         setup();
     }
 
-    void setup(int timeout=0, int capacity=1000) {
+    void setup(int timeout=0, int capacity=10000) {
         pull_socket.setsockopt(ZMQ_RCVTIMEO, &timeout, sizeof(timeout));
         pull_socket.setsockopt(ZMQ_SNDHWM, &capacity, sizeof(capacity));
     }
