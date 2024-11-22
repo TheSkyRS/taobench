@@ -32,8 +32,9 @@ MemcacheServer *DBFactory::memcache_ = nullptr;
 MemcacheServer *DBFactory::GetMemcacheServer(utils::Properties *props) {
   if (memcache_ == nullptr) {
     std::string self_addr = props->GetProperty("self_addr", "127.0.0.1");
+    std::string db_addr = props->GetProperty("db_addr", "127.0.0.1");
     std::string server_type = props->GetProperty("server_type", "mix");
-    memcache_ = new MemcacheServer(self_addr);
+    memcache_ = new MemcacheServer(self_addr, db_addr);
 
     if (server_type == "mix" || server_type == "db") {
       std::vector<DB*> dbr, dbw;
@@ -47,10 +48,7 @@ MemcacheServer *DBFactory::GetMemcacheServer(utils::Properties *props) {
     }
     
     if (server_type == "mix" || server_type == "cache") {
-      int cache_idx = std::stoi(props->GetProperty("cache_idx", "0"));
-      int num_cache = std::stoi(props->GetProperty("num_cache", "1"));
-      assert(cache_idx >= 0 && num_cache > 0);
-      memcache_->StartMemcache(cache_idx, num_cache);
+      memcache_->StartMemcache();
     }
   }
   return memcache_;

@@ -141,6 +141,15 @@ void ParseCommandLine(int argc, const char *argv[], benchmark::utils::Properties
       }
       props.SetProperty("self_addr", argv[argindex]);
       argindex++;
+    } else if (strcmp(argv[argindex], "-db-addr") == 0) {
+      argindex++;
+      if (argindex >= argc) {
+        UsageMessage(argv[0]);
+        std::cerr << "Missing argument value for -db-addr" << std::endl;
+        exit(0);
+      }
+      props.SetProperty("db_addr", argv[argindex]);
+      argindex++;
     } else if (strcmp(argv[argindex], "-server-type") == 0) {
       argindex++;
       if (argindex >= argc) {
@@ -149,24 +158,6 @@ void ParseCommandLine(int argc, const char *argv[], benchmark::utils::Properties
         exit(0);
       }
       props.SetProperty("server_type", argv[argindex]);
-      argindex++;
-    } else if (strcmp(argv[argindex], "-cache-idx") == 0) {
-      argindex++;
-      if (argindex >= argc) {
-        UsageMessage(argv[0]);
-        std::cerr << "Missing argument value for -cache-idx" << std::endl;
-        exit(0);
-      }
-      props.SetProperty("cache_idx", argv[argindex]);
-      argindex++;
-    } else if (strcmp(argv[argindex], "-num-cache") == 0) {
-      argindex++;
-      if (argindex >= argc) {
-        UsageMessage(argv[0]);
-        std::cerr << "Missing argument value for -num-cache" << std::endl;
-        exit(0);
-      }
-      props.SetProperty("num_cache", argv[argindex]);
       argindex++;
     } else if (strcmp(argv[argindex], "-run") == 0 || strcmp(argv[argindex], "-t") == 0) {
       argindex++;

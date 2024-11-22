@@ -27,7 +27,9 @@ class MemcacheServer {
   typedef std::unordered_map<FullAddr, WebQueuePush<MemcacheData>*, FullAddrHash> ResponseMap;
 
  public:
-  MemcacheServer(std::string self_addr): self_addr_(self_addr) {
+  MemcacheServer(std::string self_addr, std::string db_addr): 
+    self_addr_(self_addr), db_addr_(db_addr) 
+  {
     std::cout << "creating MemcacheServer" << std::endl;
   }
   ~MemcacheServer() {
@@ -48,21 +50,21 @@ class MemcacheServer {
     std::cout << "Starting DBServer" << std::endl;
   }
 
-  void StartMemcache(int cache_idx, int num_cache) {
-    for (size_t i = cache_idx; i < zmq_read_ports.size(); i += num_cache) {
+  void StartMemcache() {
+    for (size_t i = 0; i < zmq_read_ports.size(); i ++) {
       auto& db_port = zmq_dbr_ports[i % zmq_dbr_ports.size()];
       thread_pool_.push_back(std::async(std::launch::async, &MemcacheServer::PollRead, 
         this, zmq_read_ports[i], db_port, zmq_read_rports[i]
       ));
     }
-    for (size_t i = cache_idx; i < zmq_read_txn_ports.size(); i += num_cache) {
+    for (size_t i = 0; i < zmq_read_txn_ports.size(); i ++) {
       int j = i + zmq_read_ports.size();
       auto& db_port = zmq_dbr_ports[j % zmq_dbr_ports.size()];
       thread_pool_.push_back(std::async(std::launch::async, &MemcacheServer::PollReadTxn, 
         this, zmq_read_txn_ports[i], db_port, zmq_read_txn_rports[i], i
       ));
     }
-    for (size_t i = cache_idx; i < zmq_write_ports.size(); i += num_cache) {
+    for (size_t i = 0; i < zmq_write_ports.size(); i ++) {
       auto& db_port = zmq_dbw_ports[i % zmq_dbw_ports.size()];
       thread_pool_.push_back(std::async(std::launch::async, &MemcacheServer::PollWrite, 
         this, zmq_write_ports[i], db_port, zmq_write_rports[i], 3000
@@ -118,7 +120,7 @@ class MemcacheServer {
     ResponseMap responses;
     
     WebQueuePush<MemcacheData> db_queue(new zmq::context_t(1));
-    db_queue.connect(db_port, self_addr_);
+    db_queue.connect(db_port, db_addr_);
 
     MemcacheData data;
     MemcachedClient memcache;
@@ -156,7 +158,7 @@ class MemcacheServer {
 
     WebSubscribe<InvalidCmd> invalid_sub(new zmq::context_t(1), zmq_invalid_port, self_addr_);
     WebQueuePush<MemcacheData> db_queue(new zmq::context_t(1));
-    db_queue.connect(db_port, self_addr_);
+    db_queue.connect(db_port, db_addr_);
 
     MemcacheData data;
     MemcachedClient memcache;
@@ -210,7 +212,7 @@ class MemcacheServer {
     WebQueuePull<MemcacheData> answers(new zmq::context_t(1), ans_port, self_addr_);
     ResponseMap responses;
     WebQueuePush<MemcacheData> db_queue(new zmq::context_t(1));
-    db_queue.connect(db_port, self_addr_);
+    db_queue.connect(db_port, db_addr_);
 
     MemcacheData data;
     const auto& operations = data.operations;
@@ -315,7 +317,7 @@ class MemcacheServer {
   }
 
   std::vector<std::future<void>> thread_pool_;
-  const std::string self_addr_;
+  const std::string self_addr_, db_addr_;
   
   std::atomic<int> write_flag{0};
   std::atomic<bool> write_txn_flag{false};

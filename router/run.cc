@@ -1,6 +1,7 @@
 #include <thread>
 #include <chrono>
 #include <random>
+#include <vector>
 #include "router.h"
 
 using namespace benchmark;
@@ -32,22 +33,35 @@ private:
 };
 
 int main(int argc, char* argv[]) {
-    std::string dest_host = "127.0.0.1";
     std::string self_addr = "127.0.0.1";
-    if(argc > 1) {
-        dest_host = argv[1];
+    std::vector<std::string> dest_hosts;
+    if (argc > 1) {
+        self_addr = argv[1];
+        for (int i = 2; i < argc; i ++) {
+            dest_hosts.push_back(argv[i]);
+        }
     }
-    if(argc > 2) {
-        self_addr = argv[2];
+    if (dest_hosts.empty()) {
+        dest_hosts.push_back("127.0.0.1");
     }
 
+    std::vector<std::string> hosts, ports;
+    for (size_t hid = 0; hid < dest_hosts.size(); hid ++){
+        for (size_t i = 0; i < zmq_read_ports.size(); i ++) {
+            hosts.push_back(dest_hosts[hid]);
+            ports.push_back(zmq_read_ports[i]);
+        }
+        for (size_t i = 0; i < zmq_read_txn_ports.size(); i ++) {
+            hosts.push_back(dest_hosts[hid]);
+            ports.push_back(zmq_read_txn_ports[i]);
+        }
+        for (size_t i = 0; i < zmq_write_ports.size(); i ++) {
+            hosts.push_back(dest_hosts[hid]);
+            ports.push_back(zmq_write_ports[i]);
+        }
+    }
+    
     ZmqRouter router(self_addr);
-    const size_t size = zmq_read_ports.size() + zmq_read_txn_ports.size() + zmq_write_ports.size();
-    std::vector<std::string> hosts(size, dest_host);
-    std::vector<std::string> ports(zmq_read_ports);
-    ports.insert(ports.end(), zmq_read_txn_ports.begin(), zmq_read_txn_ports.end());
-    ports.insert(ports.end(), zmq_write_ports.begin(), zmq_write_ports.end());
-
     for (int i=0; i < zmq_router_ports.size(); i++) {
         router.set_rule(zmq_router_ports[i], zmq_router_rports[i], 
                         hosts, ports, "tcp", new RandomFunc());
