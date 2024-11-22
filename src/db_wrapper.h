@@ -21,10 +21,11 @@ namespace benchmark {
 class DBWrapper : public DB {
  public:
   DBWrapper(DB *db, Measurements *measurements, std::string host="127.0.0.1", int tid=0, 
-    std::string self_addr="127.0.0.1"):
+    std::string self_addr="127.0.0.1", double send_rate = 1.0):
     db_(db), measurements_(measurements), ans_addr_(self_addr), ans_port_(std::to_string(7000+tid)), 
-    tid_(tid) {
-    if (db == nullptr) {
+    tid_(tid), send_rate_(send_rate), gen(std::random_device{}()), dist(0.0, 1.0) 
+  {
+    if (db == nullptr) { // this means the DBWrapper is for memcache
       memcache_router = new WebQueuePush<MemcacheData>(new zmq::context_t(1));
       memcache_ans = new WebQueuePull<MemcacheData>(new zmq::context_t(1), ans_port_, ans_addr_);
       
@@ -79,9 +80,12 @@ class DBWrapper : public DB {
     const std::vector<DB::DB_Operation> operations{operation};
     const std::vector<FullAddr> resp_addr{FullAddr{ans_addr_, ans_port_}};
 
-    memcache_router->enqueue(
-      {getTimestamp(), resp_addr, operations, read_buffer, read_only, txn_op},
-    tid_);
+    if (dist(gen) <= send_rate_) {
+      memcache_router->enqueue(
+        {getTimestamp(), resp_addr, operations, read_buffer, read_only, txn_op},
+      tid_);
+    }
+    
     return Status::kOK;
   }
 
@@ -91,9 +95,11 @@ class DBWrapper : public DB {
   {
     const std::vector<FullAddr> resp_addr{FullAddr{ans_addr_, ans_port_}};
 
-    memcache_router->enqueue(
-      {getTimestamp(), resp_addr, operations, read_buffer, read_only, true},
-    tid_);
+    if (dist(gen) <= send_rate_) {
+      memcache_router->enqueue(
+        {getTimestamp(), resp_addr, operations, read_buffer, read_only, true},
+      tid_);
+    }
     return Status::kOK;
   }
 
@@ -147,6 +153,10 @@ class DBWrapper : public DB {
   Measurements *measurements_;
   const std::string ans_addr_, ans_port_;
   int tid_;
+
+  double send_rate_;
+  std::mt19937 gen;
+  std::uniform_real_distribution<> dist;
 
   WebQueuePush<MemcacheData>* memcache_router = nullptr;
   WebQueuePull<MemcacheData>* memcache_ans = nullptr;

@@ -150,6 +150,15 @@ void ParseCommandLine(int argc, const char *argv[], benchmark::utils::Properties
       }
       props.SetProperty("db_addr", argv[argindex]);
       argindex++;
+    } else if (strcmp(argv[argindex], "-send-rate") == 0) {
+      argindex++;
+      if (argindex >= argc) {
+        UsageMessage(argv[0]);
+        std::cerr << "Missing argument value for -send-rate" << std::endl;
+        exit(0);
+      }
+      props.SetProperty("send_rate", argv[argindex]);
+      argindex++;
     } else if (strcmp(argv[argindex], "-server-type") == 0) {
       argindex++;
       if (argindex >= argc) {

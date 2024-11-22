@@ -19,7 +19,8 @@ DB *DBFactory::CreateDB(utils::Properties *props, Measurements *measurements,
   if (memcache) {
     std::string host = props->GetProperty("host", "127.0.0.1");
     std::string self_addr = props->GetProperty("self_addr", "127.0.0.1");
-    return new DBWrapper(nullptr, measurements, host, tid, self_addr);
+    double send_rate = std::stod(props->GetProperty("send_rate", "1.0"));
+    return new DBWrapper(nullptr, measurements, host, tid, self_addr, send_rate);
   }
   DB *db = CreateRawDB(props);
   if (db != nullptr) {
