@@ -35,10 +35,10 @@ int main(int argc, char* argv[]) {
     std::string dest_host = "127.0.0.1";
     std::string self_addr = "127.0.0.1";
     if(argc > 1) {
-        dest_host = argv[1];
+        self_addr = argv[1];
     }
     if(argc > 2) {
-        self_addr = argv[2];
+        dest_host = argv[2];
     }
 
     ZmqRouter router(self_addr);
@@ -56,4 +56,4 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
-// Compile with: g++ -o router run.cc -pthread -lzmq -I../src
+// Compile with: g++ -O3 -o router run.cc -pthread -lzmq -I../src

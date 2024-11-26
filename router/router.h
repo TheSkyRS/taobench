@@ -46,7 +46,9 @@ private:
 
         MemcacheRequest value;
         while (true) {
-            router_queue.dequeue(value);
+            if (!router_queue.dequeue(value)) {
+                continue;
+            }
             value.prev_addr = value.resp_addr;
             value.resp_addr = resp_addr;
             dealer_queue.enqueue(value, func->index(value));
@@ -60,7 +62,9 @@ private:
 
         MemcacheResponse value;
         while (true) {
-            resp_queue.dequeue(value);
+            if (!resp_queue.dequeue(value)) {
+                continue;
+            }
             FullAddr& addr = value.prev_addr;
             if (ans_queue.find(addr) == ans_queue.end()) {
                 ans_queue[addr] = new WebQueuePush<MemcacheResponse>(&ctx);
