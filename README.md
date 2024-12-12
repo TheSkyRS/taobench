@@ -1,6 +1,6 @@
-# Midterm Artifact: TAOBench
+# Final Artifact: TAOBench
 
-This document is a midterm artifact for our group, **"Distributed System."** As previously presented, we reviewed the paper "TAO" by Facebook and analyzed two benchmarks: "DCPerf/taobench" and "TAOBench." This artifact shows how we used "TAOBench" to obtain results and provides an overview of the TAOBench structure.
+This is the final artifact document for our project, **"Distributed Storage System"**. We provide the codes for our system in this repo and instructions on how to test it. Notice that branch **alex1** is the integrated version, and **alex2** is the distributed version as described in our papers. Please only run experiments on these two branchs. 
 
 ---
 
