@@ -1,6 +1,6 @@
 # Final Artifact: TAOBench
 
-This is the final artifact document for our project, **"Distributed Storage System"**. We provide the codes for our system in this repo and instructions on how to test it. Notice that branch **alex1** is the integrated version, and **alex2** is the distributed version as described in our papers. Please only run experiments on these two branchs. **Please pull the repo** before you run the experiments in case we've made updates. Please contact us through emails in our report if you encounter any problems.
+This is the final artifact document for our project, **"Distributed Storage System"**. We provide the codes for our system in this repo and instructions on how to test it. Notice that branch **alex** is the integrated version, and **alex2** is the distributed version as described in our papers. Please only run experiments on these two branchs. **Please pull the repo** before you run the experiments in case we've made updates. Please contact us through emails in our report if you encounter any problems.
 
 ---
 
