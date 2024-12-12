@@ -33,9 +33,17 @@ This is the final artifact document for our project, **"Distributed Storage Syst
 
 ---
 
-### 2. How to Use TAOBench
+### 2. Artifact Checklist
 
-#### 2.1 Cloudlab Implementation
+* **Algorithm:** We redesigned the baseline's architecture by separating clients, servers, and DB interfaces, creating router mechanisms, deploying specialized threads to deal with read, read_txn, write and DB quires, and implementing weak consistency for transactions.
+
+* **Program:** Our benchmark is TAOBench (see 1.2), and we added hit rate to it. The benchmark (testing logic) is integrated with our code, so there is no need to download it. The size of our repo is ~10MB. But it's recommended to have 32 cores (single machine) / 16 cores (double machines) and 25G memory for evaluation.
+
+* **Compilation:** A compiler that supports C++17 is recommended.
+
+### 3. How to Use TAOBench
+
+#### 3.1 Cloudlab Implementation
 
 To implement this artifact on Cloudlab, please follow these steps:
 
@@ -44,7 +52,7 @@ To implement this artifact on Cloudlab, please follow these steps:
 3. Follow the Cloudlab instructions to initiate the node.
 4. SSH into the node. The artifact files are located in `/local/taobench/`.
 
-#### 2.2 File Structure
+#### 3.2 File Structure
 
 To use this artifact, navigate to `/local/taobench/`. Key files include:
 
@@ -61,7 +69,7 @@ To use this artifact, navigate to `/local/taobench/`. Key files include:
 
 - **`./experiments.txt`**: Allows parameter setup for experiments, including `num_threads`, `warmup_len`, and `exp_len`.
 
-#### 2.3 Software Implementation
+#### 3.3 Test the System
 
 This image is fully implemented, so the environment is pre-configured. Enter `/local/taobench/` and use the `make` command to ensure any source code modifications are correctly compiled. The MySQL database, named `benchmark`, can be accessed using `sudo mysql`.
 
@@ -92,7 +100,9 @@ This command loads the parameters from [experiments.txt](experiments.txt), which
 ```
 After running the experiment, results will be displayed in the terminal and recorded in [/local/taobench/results.txt](results.txt).
 
-### 3. Result Information
+#### 3.4 Distributed Tests
+
+### 4. Result Information
 
 When you check the [/local/taobench/results.txt](results.txt), you can refer to final part of the result which contains like
 ```
