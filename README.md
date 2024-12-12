@@ -69,7 +69,7 @@ This is the final artifact document for our project, **"Distributed Storage Syst
 
 * **Time to Experiment:** You may need several minutes to compile and start each component of the system. The time for experiment itself is 3 minutes.
 
-* **Publicly available?:** Our github repo and disk image on cloudlab are available, but we didn't publish our sources through other sources, e.g. websites. Please contact us if you have problem accessing our code.
+* **Publicly available?:** Our github repo and disk image on cloudlab are available, but we didn't publish our project through other sources, e.g. websites. Please contact us if you have problem accessing our code.
 
 * **Code licenses:** Not specified.
 
@@ -79,11 +79,11 @@ This is the final artifact document for our project, **"Distributed Storage Syst
 
 ### 3. How to Use TAOBench
 
-#### 3.1 Cloudlab Implementation
+#### 3.1 Cloudlab Configuration 
 
-To implement this artifact on Cloudlab, please follow these steps:
+To configure this artifact on Cloudlab, please follow these steps:
 
-1. Use the "TAO" profile and select the OS image: `urn:publicid:IDN+utah.cloudlab.us+image+eecse6894-PG0:TAO`.
+1. Use the "alex-tao" profile and select the OS image "final tao bench" as described in 1.4.
 2. Set the hardware to `cloudlab-utah -> c6525-100g`.
 3. Follow the Cloudlab instructions to initiate the node.
 4. SSH into the node. The artifact files are located in `/local/taobench/`.
@@ -102,33 +102,42 @@ To use this artifact, navigate to `/local/taobench/`. Key files include:
       - **`RunTestWorkload`**: Runs a simple workload for testing.
     - **`./mysqldb`**: Contains MySQL database configuration files.
   - **`workload_o.json`**: Represents a read-heavy workload configuration file.
+  - **`db_wrapper.h`**: The interfaces to access databases or cache layers and handle scalar or transaction operations.
 
 - **`./experiments.txt`**: Allows parameter setup for experiments, including `num_threads`, `warmup_len`, and `exp_len`.
+- **`./router`**: Contains the source code for router, which should be compiled separately.
+- **`./memcache`**: The cache layer implemented by us, including memcache, data structures, cache logic (memcache wrapper), and ZeroMQ utilities.
 
 #### 3.3 Test the System
 
-This image is fully implemented, so the environment is pre-configured. Enter `/local/taobench/` and use the `make` command to ensure any source code modifications are correctly compiled. The MySQL database, named `benchmark`, can be accessed using `sudo mysql`.
+The environment is pre-configured in our disk image. Although we have setup MySQL, you may still check this document when facing problems. [MySQL Setup](https://docs.google.com/document/d/19IRzfTIO189Ok2O2dUSjod5KpCgsb518sCiPbDKDaHs). The MySQL database, named `benchmark`, can be accessed using `sudo mysql`. Each time before running experienments, you should clear all items from `objects` and `edges` tables under `benchmark`. Enter `/local/taobench/` and run `cmake . -DWITH_MYSQL=ON -DWITH_MEMCACHE=ON -DCACHE_ID=-1` to generate Makefile. Then, use the `make` command to compile, which should generate `./taobench`. Enter `/local/taobench/router` and run `g++ -O3 -DCACHE_ID=-1 -o router run.cc -pthread -lzmq -I../src` to compile router.
 
 **Load Data Phase**:  
 To load data, use the following command:
 
 ```bash
-sudo ./taobench -load-threads 48 -db mysql -p mysqldb/mysql_db.properties -c src/workload_o.json -load -n 1500000
+sudo ./taobench -load-threads 48 -db mysql -p mysqldb/mysql_db.properties -c src/workload_o.json -load -n 150000
 ```
 
 This command will load data into the benchmark MySQL database. After data loading, verify the row counts with:
 
-SELECT COUNT(*) FROM edges; (Expected: 1,500,000 rows in the edges table)
-SELECT COUNT(*) FROM objects; (Expected: 3,000,000 rows in the objects table)
+SELECT COUNT(\*) FROM edges; (Expected: 150,000 rows in the edges table)
+SELECT COUNT(\*) FROM objects; (Expected: 300,000 rows in the objects table)
 
 **Run Experiments Phase**:  
-To run the experiment, use the following command:
+To run the experiment in a direct, single-machine way, start the router first in one terminal:
+
+```bash
+sudo ./router/router
+```
+
+And run the system in another:
 
 ```bash
 sudo ./taobench -load-threads 48 -db mysql -p mysqldb/mysql_db.properties -c src/workload_o.json -run -e experiments.txt
 ```
 
-This command loads the parameters from [experiments.txt](experiments.txt), which includes:
+The command above uses the parameters from [experiments.txt](experiments.txt), which includes:
 ```
 48: Number of threads
 10: Warmup length in seconds
@@ -137,6 +146,59 @@ This command loads the parameters from [experiments.txt](experiments.txt), which
 After running the experiment, results will be displayed in the terminal and recorded in [/local/taobench/results.txt](results.txt).
 
 #### 3.4 Distributed Tests
+
+To run the experiment in a distributed way, you need at least 2 machines (machine1 for two cache servers) and machine2 for clients, routers, and DB interfaces.
+
+First of all, you should set up MySQL and clear `objects` and `edges` tables on machine2 in the same way as 3.3. Then you'll need to modify `mysqldb/mysql_db.properties` on both machines by changing line 2 `mysqldb.url=localhost` into `mysqldb.url=<host of machine2>`, e.g. 128.110.219.42. **This is super important.** After that, you can run this command on machine1 or machine2 to load the data:
+```bash
+sudo ./taobench -load-threads 48 -db mysql -p mysqldb/mysql_db.properties -c src/workload_o.json -run -e experiments.txt
+```
+If no error is thrown, it means MySQL can be accessed correctly.
+
+**Step1:** Start the router on machine2. Enter `/local/taobench/router` and run `g++ -O3 -DCACHE_ID=-1 -o router run.cc -pthread -lzmq -I../src` to compile router. Run `./router <host of machine2> <host of machine1>` to start the router. If successful, you'll see outputs like this:
+```
+ZeroMQ listening on *:6001
+ZeroMQ listening on *:6002
+ZeroMQ listening on *:6003
+ZeroMQ connecting to 128.110.219.18:6100
+ZeroMQ connecting to 128.110.219.18:6102
+...
+```
+
+**Step2:** Start DB interface on machine2. Compile the system with `cmake . -DWITH_MYSQL=ON -DWITH_MEMCACHE=ON -DCACHE_ID=-1` and `make` on machine2. Run `sudo ./taobench -load-threads 48 -db mysql -p mysqldb/mysql_db.properties -c src/workload_o.json -run -e experiments.txt -mode backend -self-addr <host of machine2> -server-type db`. If successful, you'll see outputs like this:
+```
+...
+ZeroMQ listening on 128.110.219.42:6401
+ZeroMQ listening on 128.110.219.42:6400
+ZeroMQ listening on 128.110.219.42:6500
+ZeroMQ publish thro 128.110.219.42:6600
+broadcast invalid 0 scala and 0 txn
+broadcast invalid 0 scala and 0 txn
+...
+```
+
+**Step3:** Start cache0 on machine1. Compile the system with `cmake . -DWITH_MYSQL=ON -DWITH_MEMCACHE=ON -DCACHE_ID=0` and `make` on machine1. Run `sudo ./taobench -load-threads 48 -db mysql -p mysqldb/mysql_db.properties -c src/workload_o.json -run -e experiments.txt -mode backend -self-addr <host of machine1> -db-addr <host of machine2> -server-type cache`. If successful, you'll see outputs like this:
+```
+...
+ZeroMQ listening on 128.110.219.18:6202
+ZeroMQ listening on 128.110.219.18:6107
+ZeroMQ listening on 128.110.219.18:6303
+ZeroMQ listening on 128.110.219.18:6105
+...
+```
+
+**Step4:** Start cache1 on machine1. Compile the system with `cmake . -DWITH_MYSQL=ON -DWITH_MEMCACHE=ON -DCACHE_ID=1` and `make` on machine1. Run the same command in another terminal as step3 to start it and you'll see similar outputs.
+
+**Step5:** Start clients on machine2. Compile the system with `cmake . -DWITH_MYSQL=ON -DWITH_MEMCACHE=ON -DCACHE_ID=-1` and `make` on machine2. Run `sudo ./taobench -load-threads 48 -db mysql -p mysqldb/mysql_db.properties -c src/workload_o.json -run -e experiments.txt -mode frontend -host <host of machine2> -self-addr <host of machine2> -send-rate 0.1` and wait for about 3 minutes until the final output like:
+```
+Cache Hit Rate: 0.908902
+22703079 operations; [INSERT: Count=17991 Max=12323.52 Min=88.58 Avg=558.00] [READ: Count=22014325 Max=14338.29 Min=25.16 Avg=211.03] [UPDATE: Count=32115 Max=11956.92 Min=110.62 Avg=660.94] [READTRANSACTION: Count=635997 Max=169687.88 Min=94.18 Avg=2839.90] [WRITETRANSACTION: Count=2651 Max=15413.49 Min=255.60 Avg=1597.97] [WRITE: Count=50106 Max=12323.52 Min=88.58 Avg=623.98]
+```
+Note that `-send-rate` is to adjust the sending speed of clients when we want to explore latency under different throughputs. Clients usually generate requests faster than cache servers can handle, resulting in a full workload and a long latency. Note that the speed of request generation is affected by different client machines. In our cases,  send-rate 0.015 creates a full workload, and send-rate 0.0066 creates a half workload.
+
+Explanation of running args of taobench: We added 5 parameters to the taobench executable, namely “-mode”, “-host”, "-server-type", "-db-addr" and “-self-addr”. For other parameters, please refer to the original TAOBench. “-mode” is to specify if you wanna run the “frontend”, “backend”, or both (“mix”). “-host” is for the ip address of router when you run in the “frontend” or “mix” mode. "-server-type" is to specify whether you want to run the "cache" layer or "db" layer alone when running the backend (run both of them by default). "-db-addr" is to specify the host of db machine when "-server-type" is "cache". “-self-addr” is the address of the machine on which taobench runs on. Theoretically, you can distribute clients, routers, multiple cache servers, and db interfaces onto more than 2 machines by specifying these arguments.
+
+Explanation of running args of router: `router <self-addr> <host-addr>`. Self-addr is the address of router's machine and host-addr is the cache server's machine.
 
 ### 4. Result Information
 
