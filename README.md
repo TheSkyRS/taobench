@@ -7,9 +7,9 @@ This is the final artifact document for our project, **"Distributed Storage Syst
 ## Quick Review
 
 - **Code Repository**: [TAOBench on GitHub](https://github.com/TheSkyRS/taobench) (Yonghao Lin's GitHub)
-- **TAOBench Overview**: [OVERVIEW.md provicded by the original author](OVERVIEW.md)
-- **Cloudlab Profile**: [Cloudlab TAO Profile](https://www.cloudlab.us/p/EECSE6894/TAO)
-- **Cloudlab Disk Image**: `urn:publicid:IDN+utah.cloudlab.us+image+eecse6894-PG0:TAO`
+- **TAOBench Overview**: [OVERVIEW.md provided by the original author](OVERVIEW.md)
+- **Cloudlab Profile**: [Final Cloudlab TAO Profile](https://www.cloudlab.us/p/EECSE6894/alex-tao)
+- **Cloudlab Disk Image**: `urn:publicid:IDN+utah.cloudlab.us+image+eecse6894-PG0:alex-tao-final:0`
 
 ### 1. Basic Information
 
