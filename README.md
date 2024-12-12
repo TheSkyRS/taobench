@@ -143,7 +143,7 @@ The command above uses the parameters from [experiments.txt](experiments.txt), w
 10: Warmup length in seconds
 150: Experiment length in seconds
 ```
-After running the experiment, results will be displayed in the terminal and recorded in [/local/taobench/results.txt](results.txt).
+After running the experiment, results will be displayed in the terminal.
 
 #### 3.4 Distributed Tests
 
@@ -202,17 +202,20 @@ Explanation of running args of router: `router <self-addr> <host-addr>`. Self-ad
 
 ### 4. Result Information
 
-When you check the [/local/taobench/results.txt](results.txt), you can refer to final part of the result which contains like
+When you see final part of the result like below, it means the experiment is finished.
 ```
-Experiment description: 48 threads, 10 seconds (warmup), 150 seconds (experiment)
-Total runtime (sec): 150.011
-Runtime excluding warmup (sec): 140.01
-Total completed operations excluding warmup: 22703079
-Throughput excluding warmup: 162153
-Number of overtime operations: 24298608
+Experiment description: 4 threads, 10 seconds (warmup), 150 seconds (experiment)
+Total runtime (sec): 150.091
+Runtime excluding warmup (sec): 140.091
+Total completed operations excluding warmup: 12829540
+Throughput excluding warmup: 91580
+Number of overtime operations: 14276500
 Number of failed operations: 0
-22703079 operations; [INSERT: Count=17991 Max=12323.52 Min=88.58 Avg=558.00] [READ: Count=22014325 Max=14338.29 Min=25.16 Avg=211.03] [UPDATE: Count=32115 Max=11956.92 Min=110.62 Avg=660.94] [READTRANSACTION: Count=635997 Max=169687.88 Min=94.18 Avg=2839.90] [WRITETRANSACTION: Count=2651 Max=15413.49 Min=255.60 Avg=1597.97] [WRITE: Count=50106 Max=12323.52 Min=88.58 Avg=623.98]
+Cache Hit Rate: 0.84551
+12829545 operations; [INSERT: Count=9973 Max=6.02 Min=1.56 Avg=3.57] [READ: Count=12436961 Max=8.66 Min=2.33 Avg=5.36] [UPDATE: Count=18457 Max=6.03 Min=1.56 Avg=3.57] [READTRANSACTION: Count=362721 Max=6.14 Min=1.70 Avg=3.72] [WRITETRANSACTION: Count=1433 Max=5.80 Min=1.56 Avg=3.56] [WRITE: Count=28430 Max=6.03 Min=1.56 Avg=3.57]
 ```
+
+Result explained: Experiment description is as the configurations in experiment.txt, which means 4 client threads, 10 sec for warmup, and 140 sec for real testing. Throughput in the 140 sec testing time is 91580 ops / sec, cache hit rate is 84.551%, and latency stats for different operations is listed at the end (in secs).
 
 After done this execution, you can find slight difference in mysql database compared to original state.
 Beacause the real workload of TAO is read-heavy, but there is still a few of writes.
