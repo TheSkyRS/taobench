@@ -191,12 +191,12 @@ ZeroMQ listening on 128.110.219.18:6105
 
 **Step5:** Start clients on machine2. Compile the system with `cmake . -DWITH_MYSQL=ON -DWITH_MEMCACHE=ON -DCACHE_ID=-1` and `make` on machine2. Run `sudo ./taobench -load-threads 48 -db mysql -p mysqldb/mysql_db.properties -c src/workload_o.json -run -e experiments.txt -mode frontend -host <host of machine2> -self-addr <host of machine2> -send-rate 0.1` and wait for about 3 minutes until the final output like:
 ```
-Cache Hit Rate: 0.908902
-22703079 operations; [INSERT: Count=17991 Max=12323.52 Min=88.58 Avg=558.00] [READ: Count=22014325 Max=14338.29 Min=25.16 Avg=211.03] [UPDATE: Count=32115 Max=11956.92 Min=110.62 Avg=660.94] [READTRANSACTION: Count=635997 Max=169687.88 Min=94.18 Avg=2839.90] [WRITETRANSACTION: Count=2651 Max=15413.49 Min=255.60 Avg=1597.97] [WRITE: Count=50106 Max=12323.52 Min=88.58 Avg=623.98]
+Cache Hit Rate: 0.84551
+12829545 operations; [INSERT: Count=9973 Max=6.02 Min=1.56 Avg=3.57] [READ: Count=12436961 Max=8.66 Min=2.33 Avg=5.36] [UPDATE: Count=18457 Max=6.03 Min=1.56 Avg=3.57] [READTRANSACTION: Count=362721 Max=6.14 Min=1.70 Avg=3.72] [WRITETRANSACTION: Count=1433 Max=5.80 Min=1.56 Avg=3.56] [WRITE: Count=28430 Max=6.03 Min=1.56 Avg=3.57]
 ```
-Note that `-send-rate` is to adjust the sending speed of clients when we want to explore latency under different throughputs. Clients usually generate requests faster than cache servers can handle, resulting in a full workload and a long latency. Note that the speed of request generation is affected by different client machines. In our cases,  send-rate 0.015 creates a full workload, and send-rate 0.0066 creates a half workload.
+Note that `-send-rate` is to adjust the sending speed of clients when we want to explore latency under different throughputs. Clients usually generate requests faster than cache servers can handle, resulting in a full workload and a long latency. Note that the speed of request generation is affected by different client machines. In our cases,  send-rate 0.015 creates a full workload, and send-rate 0.0066 creates a half workload. You may try different `-send-rate` on your own machine.
 
-Explanation of running args of taobench: We added 5 parameters to the taobench executable, namely “-mode”, “-host”, "-server-type", "-db-addr" and “-self-addr”. For other parameters, please refer to the original TAOBench. “-mode” is to specify if you wanna run the “frontend”, “backend”, or both (“mix”). “-host” is for the ip address of router when you run in the “frontend” or “mix” mode. "-server-type" is to specify whether you want to run the "cache" layer or "db" layer alone when running the backend (run both of them by default). "-db-addr" is to specify the host of db machine when "-server-type" is "cache". “-self-addr” is the address of the machine on which taobench runs on. Theoretically, you can distribute clients, routers, multiple cache servers, and db interfaces onto more than 2 machines by specifying these arguments.
+Explanation of running args of taobench: We added 5 parameters to the taobench executable, namely `-mode`, `-host`, `-server-type`, `-db-addr` and `-self-addr`. For other parameters, please refer to the original TAOBench. `-mode` is to specify if you wanna run the “frontend”, “backend”, or both (“mix”). `-host` is for the ip address of router when you run in the “frontend” or “mix” mode. `-server-type` is to specify whether you want to run the "cache" layer or "db" layer alone when running the backend (run both of them by default). `-db-addr` is to specify the host of db machine when `-server-type` is "cache". `-self-addr` is the address of the machine on which taobench runs on. Theoretically, you can distribute clients, routers, multiple cache servers, and db interfaces onto more than 2 machines by specifying these arguments.
 
 Explanation of running args of router: `router <self-addr> <host-addr>`. Self-addr is the address of router's machine and host-addr is the cache server's machine.
 
@@ -239,5 +239,5 @@ mysql> SELECT COUNT(*) FROM edges;
 > A few clarifications:
 
 > - For throughput, each read/write/read transaction/write transaction counts as a single completed operation.
-> - The last line describes operation latencies. The "Count" is the number of completed operations. The "Max", "Min", and "Avg" are latencies in microseconds. The WRITE operation category is an aggregate of inserts/updates/deletes.
+> - The last line describes operation latencies. The "Count" is the number of completed operations. The "Max", "Min", and "Avg" are latencies in seconds. The WRITE operation category is an aggregate of inserts/updates/deletes.
 > - `Overtime operations` aren't particularly meaningful anymore.
