@@ -41,6 +41,42 @@ This is the final artifact document for our project, **"Distributed Storage Syst
 
 * **Compilation:** A compiler that supports C++17 is recommended.
 
+* **Transformations:** Not required.
+
+* **Binary:** Binaries are ./taobench and ./router/router, you should follow part 3 to generate and run them. 
+
+* **Model:** Not required.
+
+* **Data set:** Not required.
+
+* **Run-time environment:** The recommended OS is Ubuntu 18.04, with C++ libraries for MySQL, ZeroMQ, and Memcached. Our cloudlab images already had all dependencies installed. We need root access to run taobench and modify MySQL.
+
+* **Hardware:** 32 cores and 25G memory. You can use cloudlab c6525-100G or c6525-25G and boost with our image.
+
+* **Run-time state:** Not required.
+
+* **Execution:** You should make sure the ports (typically 6000 - 8000) are not blocked by firewall and MySQL can be accessed remotely. See our guide for MySQL configuration in part3. The image should have setup these. It will take about 3 min to run a regular test.
+
+* **Metrics:** Throughputs (total operations), latencies for different operations, and cache hit rate will be evaluated.
+
+* **Output:** Sample outputs will be explained in part4.
+
+* **Experiments:** Experienments requires resetting MySQL, loading data into MySQL, starting router, and running taobench. If you run in a distributed way, you'll need to start client, cache1, cache2, router, and db interface separately. Please refer to part3 for instructions.
+
+* **Disk Space:** 16 GB disk space is enough.
+
+* **Time to Prepare:** The environment is configured in our image. If everything goes smoothly, you can finish the preparation within 15 minutes.
+
+* **Time to Experiment:** You may need several minutes to compile and start each component of the system. The time for experiment itself is 3 minutes.
+
+* **Publicly available?:** Our github repo and disk image on cloudlab are available, but we didn't publish our sources through other sources, e.g. websites. Please contact us if you have problem accessing our code.
+
+* **Code licenses:** Not specified.
+
+* **Workflow frameworks used?** Not used.
+
+* **Archived?:** Not applicable.
+
 ### 3. How to Use TAOBench
 
 #### 3.1 Cloudlab Implementation
