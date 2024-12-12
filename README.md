@@ -110,7 +110,7 @@ To use this artifact, navigate to `/local/taobench/`. Key files include:
 
 #### 3.3 Test the System
 
-The environment is pre-configured in our disk image. Although we have setup MySQL, you may still check this document when facing problems. [MySQL Setup](https://docs.google.com/document/d/19IRzfTIO189Ok2O2dUSjod5KpCgsb518sCiPbDKDaHs). The MySQL database, named `benchmark`, can be accessed using `sudo mysql`. Each time before running experienments, you should clear all items from `objects` and `edges` tables under `benchmark`. Enter `/local/taobench/` and run `cmake . -DWITH_MYSQL=ON -DWITH_MEMCACHE=ON -DCACHE_ID=-1` to generate Makefile. Then, use the `make` command to compile, which should generate `./taobench`. Enter `/local/taobench/router` and run `g++ -O3 -DCACHE_ID=-1 -o router run.cc -pthread -lzmq -I../src` to compile router.
+The environment is pre-configured in our disk image. Although we have setup MySQL, you may still check this document when facing problems [MySQL Setup](https://docs.google.com/document/d/19IRzfTIO189Ok2O2dUSjod5KpCgsb518sCiPbDKDaHs). The MySQL database, named `benchmark`, can be accessed using `sudo mysql`. Each time before running experienments, you should clear all items from `objects` and `edges` tables under `benchmark`. Enter `/local/taobench/` and run `cmake . -DWITH_MYSQL=ON -DWITH_MEMCACHE=ON -DCACHE_ID=-1` to generate Makefile. Then, use the `make` command to compile, which should generate `./taobench`. Enter `/local/taobench/router` and run `g++ -O3 -DCACHE_ID=-1 -o router run.cc -pthread -lzmq -I../src` to compile router.
 
 **Load Data Phase**:  
 To load data, use the following command:
@@ -149,7 +149,7 @@ After running the experiment, results will be displayed in the terminal.
 
 To run the experiment in a distributed way, you need at least 2 machines (machine1 for two cache servers) and machine2 for clients, routers, and DB interfaces.
 
-First of all, you should set up MySQL and clear `objects` and `edges` tables on machine2 in the same way as 3.3. Then you'll need to modify `mysqldb/mysql_db.properties` on both machines by changing line 2 `mysqldb.url=localhost` into `mysqldb.url=<host of machine2>`, e.g. 128.110.219.42. **This is super important.** After that, you can run this command on machine1 or machine2 to load the data:
+First of all, you should set up MySQL and clear `objects` and `edges` tables on machine2 in the same way as 3.3. Then you'll need to modify `mysqldb/mysql_db.properties` on both machines by changing line 2 `mysqldb.url=localhost` into `mysqldb.url=<host of machine2>`, e.g. 128.110.219.42. **This is super important.** After that, you can run this command on machine1 (or machine2) to load the data:
 ```bash
 sudo ./taobench -load-threads 48 -db mysql -p mysqldb/mysql_db.properties -c src/workload_o.json -run -e experiments.txt
 ```
