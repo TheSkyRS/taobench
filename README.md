@@ -1,6 +1,6 @@
 # Final Artifact: TAOBench
 
-This is the final artifact document for our project, **"Distributed Storage System"**. We provide the codes for our system in this repo and instructions on how to test it. Notice that branch **alex1** is the integrated version, and **alex2** is the distributed version as described in our papers. Please only run experiments on these two branchs. 
+This is the final artifact document for our project, **"Distributed Storage System"**. We provide the codes for our system in this repo and instructions on how to test it. Notice that branch **alex1** is the integrated version, and **alex2** is the distributed version as described in our papers. Please only run experiments on these two branchs. **Please pull the repo** before you run the experiments in case we've made updates. Please contact us through emails in our report if you encounter any problems.
 
 ---
 
@@ -28,8 +28,8 @@ This is the final artifact document for our project, **"Distributed Storage Syst
 - **Meta Blog**: [DCPerf Meta Blog](https://engineering.fb.com/2024/08/05/data-center-engineering/dcperf-open-source-benchmark-suite-for-hyperscale-compute-applications/)
 
 #### 1.4 Cloudlab Information
-- **Profile**: [Cloudlab TAO Profile](https://www.cloudlab.us/p/EECSE6894/TAO)
-- **Image Disk**: `urn:publicid:IDN+utah.cloudlab.us+image+eecse6894-PG0:TAO`
+- **Profile**: [Cloudlab TAO Profile](https://www.cloudlab.us/p/EECSE6894/alex-tao)
+- **Image Disk**: `urn:publicid:IDN+utah.cloudlab.us+image+eecse6894-PG0:alex-tao-final:0`
 
 ---
 
